@@ -2,23 +2,50 @@ package storage
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"sort"
 	"time"
 
-	"github.com/bbvtaev/pulse-core/internal/model"
+	"github.com/bbvtaev/solenix-core/internal/chunk"
+	"github.com/bbvtaev/solenix-core/internal/model"
 )
 
 // Query возвращает все серии по метрике и лейблам в диапазоне [from, to].
 // from и to — Unix nanoseconds. 0 означает отсутствие ограничения.
+// Результат объединяет холодные данные из chunk-файлов и горячий буфер из памяти.
 func (db *DB) Query(metric string, labels map[string]string, from, to int64) ([]model.SeriesResult, error) {
 	if metric == "" {
 		return nil, errors.New("metric is required")
 	}
 
+	cold, err := chunk.QueryChunks(db.chunksDir, metric, labels, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("query chunks: %w", err)
+	}
+
+	hot := db.queryMemory(metric, labels, from, to)
+
+	if len(cold) == 0 {
+		return hot, nil
+	}
+	if len(hot) == 0 {
+		return cold, nil
+	}
+	return mergeQueryResults(cold, hot), nil
+}
+
+// queryMemory читает только горячий буфер (точки, не сброшенные в chunks).
+func (db *DB) queryMemory(metric string, labels map[string]string, from, to int64) []model.SeriesResult {
 	ids := db.metricIdx.lookup(metric)
 	if len(ids) == 0 {
-		return nil, nil
+		return nil
+	}
+
+	// Не возвращаем точки, уже записанные в chunks — они придут из cold-слоя
+	effectiveFrom := from
+	if ft := db.flushedUpTo.Load(); ft > 0 && (from == 0 || ft+1 > from) {
+		effectiveFrom = ft + 1
 	}
 
 	var res []model.SeriesResult
@@ -34,7 +61,7 @@ func (db *DB) Query(metric string, labels map[string]string, from, to int64) ([]
 			sh.mu.RUnlock()
 			continue
 		}
-		points := filterPoints(ser.points, from, to)
+		points := filterPoints(ser.points, effectiveFrom, to)
 		lbls := cloneLabels(ser.labels)
 		met := ser.metric
 		sh.mu.RUnlock()
@@ -44,41 +71,42 @@ func (db *DB) Query(metric string, labels map[string]string, from, to int64) ([]
 		}
 		res = append(res, model.SeriesResult{Metric: met, Labels: lbls, Points: points})
 	}
-
-	return res, nil
+	return res
 }
 
-// Delete удаляет точки в диапазоне [from, to] для всех серий, совпадающих с metric+labels.
-func (db *DB) Delete(metric string, labels map[string]string, from, to int64) error {
-	if metric == "" {
-		return errors.New("metric is required")
+// mergeQueryResults объединяет cold (chunks) и hot (память) результаты.
+// Для одной и той же серии cold-точки предшествуют hot-точкам, дублей нет.
+func mergeQueryResults(cold, hot []model.SeriesResult) []model.SeriesResult {
+	hotByID := make(map[uint64]*model.SeriesResult, len(hot))
+	for i := range hot {
+		id := model.HashSeries(hot[i].Metric, hot[i].Labels)
+		hotByID[id] = &hot[i]
 	}
 
-	ids := db.metricIdx.lookup(metric)
-	for _, id := range ids {
-		sh := db.shardFor(id)
-		sh.mu.Lock()
-		ser, ok := sh.series[id]
-		if !ok {
-			sh.mu.Unlock()
-			continue
-		}
-		if !labelsMatch(labels, ser.labels) {
-			sh.mu.Unlock()
-			continue
-		}
-		ser.points = deletePoints(ser.points, from, to)
-		if len(ser.points) == 0 {
-			delete(sh.series, id)
-			sh.mu.Unlock()
-			db.metricIdx.remove(metric, id)
-			continue
-		}
-		sh.mu.Unlock()
-	}
+	result := make([]model.SeriesResult, 0, len(cold)+len(hot))
+	usedHot := make(map[uint64]bool, len(hot))
 
-	return nil
+	for _, c := range cold {
+		id := model.HashSeries(c.Metric, c.Labels)
+		if h, ok := hotByID[id]; ok {
+			combined := make([]model.Point, len(c.Points)+len(h.Points))
+			copy(combined, c.Points)
+			copy(combined[len(c.Points):], h.Points)
+			result = append(result, model.SeriesResult{Metric: c.Metric, Labels: c.Labels, Points: combined})
+			usedHot[id] = true
+		} else {
+			result = append(result, c)
+		}
+	}
+	for i := range hot {
+		id := model.HashSeries(hot[i].Metric, hot[i].Labels)
+		if !usedHot[id] {
+			result = append(result, hot[i])
+		}
+	}
+	return result
 }
+
 
 // QueryAgg возвращает агрегированные данные по временным окнам.
 func (db *DB) QueryAgg(metric string, labels map[string]string, from, to int64, window time.Duration, agg model.AggType) ([]model.AggResult, error) {
@@ -132,28 +160,6 @@ func filterPoints(points []model.Point, from, to int64) []model.Point {
 	return out
 }
 
-func deletePoints(points []model.Point, from, to int64) []model.Point {
-	if len(points) == 0 {
-		return nil
-	}
-	if from == 0 && to == 0 {
-		return nil
-	}
-
-	out := points[:0]
-	for _, p := range points {
-		inRange := (from == 0 || p.Timestamp >= from) && (to == 0 || p.Timestamp <= to)
-		if !inRange {
-			out = append(out, p)
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	result := make([]model.Point, len(out))
-	copy(result, out)
-	return result
-}
 
 func aggregatePoints(points []model.Point, from int64, window time.Duration, agg model.AggType) []model.AggPoint {
 	if len(points) == 0 || window <= 0 {

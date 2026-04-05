@@ -11,7 +11,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/bbvtaev/pulse-core/internal/model"
+	"github.com/bbvtaev/solenix-core/internal/model"
 )
 
 // Формат WAL-записи на диске:
@@ -141,10 +141,8 @@ func Replay(path string) ([]model.Record, error) {
 }
 
 func encodeRecord(rec model.Record) []byte {
-	estimatedSize := 1 + 2 + len(rec.Metric) + 2 + len(rec.Labels)*20 + 2 + len(rec.Points)*16
+	estimatedSize := 2 + len(rec.Metric) + 2 + len(rec.Labels)*20 + 2 + len(rec.Points)*16
 	buf := make([]byte, 0, estimatedSize)
-
-	buf = append(buf, uint8(rec.Type))
 
 	buf = binary.LittleEndian.AppendUint16(buf, uint16(len(rec.Metric)))
 	buf = append(buf, rec.Metric...)
@@ -157,16 +155,10 @@ func encodeRecord(rec model.Record) []byte {
 		buf = append(buf, v...)
 	}
 
-	switch rec.Type {
-	case model.RecordDelete:
-		buf = binary.LittleEndian.AppendUint64(buf, uint64(rec.DeleteFrom))
-		buf = binary.LittleEndian.AppendUint64(buf, uint64(rec.DeleteTo))
-	default: // RecordWrite
-		buf = binary.LittleEndian.AppendUint16(buf, uint16(len(rec.Points)))
-		for _, p := range rec.Points {
-			buf = binary.LittleEndian.AppendUint64(buf, uint64(p.Timestamp))
-			buf = binary.LittleEndian.AppendUint64(buf, math.Float64bits(p.Value))
-		}
+	buf = binary.LittleEndian.AppendUint16(buf, uint16(len(rec.Points)))
+	for _, p := range rec.Points {
+		buf = binary.LittleEndian.AppendUint64(buf, uint64(p.Timestamp))
+		buf = binary.LittleEndian.AppendUint64(buf, math.Float64bits(p.Value))
 	}
 
 	return buf
@@ -178,13 +170,6 @@ func decodeRecord(data []byte) (model.Record, error) {
 	maxLen := len(data)
 
 	check := func(n int) bool { return offset+n <= maxLen }
-
-	// Тип записи
-	if !check(1) {
-		return rec, io.ErrUnexpectedEOF
-	}
-	rec.Type = model.RecordType(data[offset])
-	offset++
 
 	// Metric
 	if !check(2) {
@@ -231,34 +216,23 @@ func decodeRecord(data []byte) (model.Record, error) {
 		offset += vLen
 	}
 
-	// Payload зависит от типа
-	switch rec.Type {
-	case model.RecordDelete:
-		if !check(16) {
-			return rec, io.ErrUnexpectedEOF
-		}
-		rec.DeleteFrom = int64(binary.LittleEndian.Uint64(data[offset:]))
-		offset += 8
-		rec.DeleteTo = int64(binary.LittleEndian.Uint64(data[offset:]))
-		offset += 8
-	default: // RecordWrite
-		if !check(2) {
-			return rec, io.ErrUnexpectedEOF
-		}
-		pointsCount := int(binary.LittleEndian.Uint16(data[offset:]))
-		offset += 2
+	// Points
+	if !check(2) {
+		return rec, io.ErrUnexpectedEOF
+	}
+	pointsCount := int(binary.LittleEndian.Uint16(data[offset:]))
+	offset += 2
 
-		if !check(pointsCount * 16) {
-			return rec, io.ErrUnexpectedEOF
-		}
-		rec.Points = make([]model.Point, pointsCount)
-		for i := 0; i < pointsCount; i++ {
-			ts := int64(binary.LittleEndian.Uint64(data[offset:]))
-			offset += 8
-			val := math.Float64frombits(binary.LittleEndian.Uint64(data[offset:]))
-			offset += 8
-			rec.Points[i] = model.Point{Timestamp: ts, Value: val}
-		}
+	if !check(pointsCount * 16) {
+		return rec, io.ErrUnexpectedEOF
+	}
+	rec.Points = make([]model.Point, pointsCount)
+	for i := 0; i < pointsCount; i++ {
+		ts := int64(binary.LittleEndian.Uint64(data[offset:]))
+		offset += 8
+		val := math.Float64frombits(binary.LittleEndian.Uint64(data[offset:]))
+		offset += 8
+		rec.Points[i] = model.Point{Timestamp: ts, Value: val}
 	}
 
 	return rec, nil

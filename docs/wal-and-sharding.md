@@ -1,4 +1,4 @@
-# WAL и шардирование в Pulse Core
+# WAL и шардирование в solenix Core
 
 ## Содержание
 
@@ -20,7 +20,7 @@
 
 ## Обзор архитектуры
 
-Pulse Core хранит данные в двух уровнях:
+solenix Core хранит данные в двух уровнях:
 
 ```
                         Write()
@@ -419,7 +419,7 @@ func (db *DB) bgLoop() {
 Параметры WAL и шардирования задаются в `config.yaml`:
 
 ```yaml
-data_dir: ~/pulse/data      # директория для data/wal/ и data/chunks/
+data_dir: ~/solenix/data      # директория для data/wal/ и data/chunks/
 wal_max_size: 33554432      # 32 MiB — ротация по размеру
 flush_interval: 2m          # принудительный flush в chunks
 retention: 720h             # 30 дней; 0 — без ограничения
@@ -429,7 +429,7 @@ retention: 720h             # 30 дней; 0 — без ограничения
 
 | Параметр | Default | Описание |
 |---|---|---|
-| `DataDir` | `~/pulse/data` | корневая директория данных |
+| `DataDir` | `~/solenix/data` | корневая директория данных |
 | `WALMaxSize` | 32 MiB | максимальный размер WAL сегмента |
 | `FlushInterval` | 2 минуты | интервал flush in chunks |
 | `RetentionDuration` | 0 (нет) | срок хранения точек |

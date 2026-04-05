@@ -1,25 +1,25 @@
-// Package pulse предоставляет Go SDK для pulse-core.
+// Package solenix предоставляет Go SDK для solenix-core.
 //
 // Пример использования:
 //
-//	client, err := pulse.NewClient("localhost:50051")
+//	client, err := solenix.NewClient("localhost:50051")
 //	if err != nil { log.Fatal(err) }
 //	defer client.Close()
 //
-//	client.Write("cpu.usage", pulse.Labels{"host": "srv1"}, 72.5)
+//	client.Push("cpu.usage", solenix.Labels{"host": "srv1"}, 72.5)
 //
 //	results, _ := client.Query("cpu.usage", nil, 0, 0)
 //	for _, s := range results {
 //	    fmt.Println(s.Metric, s.Points)
 //	}
-package pulse
+package solenix
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	pb "github.com/bbvtaev/pulse-core/api/proto"
+	pb "github.com/bbvtaev/solenix-core/api/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -40,22 +40,22 @@ type SeriesResult struct {
 	Points []Point
 }
 
-// Client — gRPC клиент для pulse-core.
+// Client — gRPC клиент для solenix-core.
 type Client struct {
 	conn    *grpc.ClientConn
-	rpc     pb.PulseDBClient
+	rpc     pb.SolenixDBClient
 	timeout time.Duration
 }
 
-// NewClient подключается к серверу pulse-core по адресу addr (например "localhost:50051").
+// NewClient подключается к серверу solenix-core по адресу addr (например "localhost:50051").
 func NewClient(addr string) (*Client, error) {
 	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		return nil, fmt.Errorf("pulse: connect to %s: %w", addr, err)
+		return nil, fmt.Errorf("solenix: connect to %s: %w", addr, err)
 	}
 	return &Client{
 		conn:    conn,
-		rpc:     pb.NewPulseDBClient(conn),
+		rpc:     pb.NewSolenixDBClient(conn),
 		timeout: 5 * time.Second,
 	}, nil
 }
@@ -65,15 +65,15 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-// Write записывает одно значение с текущим временем (UnixNano).
-func (c *Client) Write(metric string, labels Labels, value float64) error {
-	return c.WriteBatch(metric, labels, []Point{
+// Push записывает одно значение с текущим временем (UnixNano).
+func (c *Client) Push(metric string, labels Labels, value float64) error {
+	return c.PushBatch(metric, labels, []Point{
 		{Timestamp: time.Now().UnixNano(), Value: value},
 	})
 }
 
-// WriteBatch записывает несколько точек с произвольными timestamp.
-func (c *Client) WriteBatch(metric string, labels Labels, points []Point) error {
+// PushBatch записывает несколько точек с произвольными timestamp.
+func (c *Client) PushBatch(metric string, labels Labels, points []Point) error {
 	pbPoints := make([]*pb.DataPoint, len(points))
 	for i, p := range points {
 		pbPoints[i] = &pb.DataPoint{Timestamp: p.Timestamp, Value: p.Value}
@@ -82,7 +82,7 @@ func (c *Client) WriteBatch(metric string, labels Labels, points []Point) error 
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
-	_, err := c.rpc.Write(ctx, &pb.WriteRequest{
+	_, err := c.rpc.Push(ctx, &pb.PushRequest{
 		Series: []*pb.Series{{
 			Metric: metric,
 			Labels: labels,
@@ -90,6 +90,50 @@ func (c *Client) WriteBatch(metric string, labels Labels, points []Point) error 
 		}},
 	})
 	return err
+}
+
+// AggPoint — одна агрегированная точка.
+type AggPoint struct {
+	Timestamp int64
+	Value     float64
+}
+
+// AggResult — результат QueryAgg для одной серии.
+type AggResult struct {
+	Metric string
+	Labels Labels
+	Window string
+	Points []AggPoint
+}
+
+// QueryAgg запрашивает агрегированные данные по временным окнам.
+// window — строка duration: "1m", "5m", "1h".
+// agg — тип агрегации: "avg", "min", "max", "sum", "count".
+func (c *Client) QueryAgg(metric string, labels Labels, from, to int64, window, agg string) ([]AggResult, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+
+	resp, err := c.rpc.QueryAgg(ctx, &pb.QueryAggRequest{
+		Metric: metric,
+		Labels: labels,
+		From:   from,
+		To:     to,
+		Window: window,
+		Agg:    agg,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]AggResult, len(resp.Series))
+	for i, s := range resp.Series {
+		pts := make([]AggPoint, len(s.Points))
+		for j, p := range s.Points {
+			pts[j] = AggPoint{Timestamp: p.Timestamp, Value: p.Value}
+		}
+		results[i] = AggResult{Metric: s.Metric, Labels: s.Labels, Window: s.Window, Points: pts}
+	}
+	return results, nil
 }
 
 // Query запрашивает данные. from/to в Unix nanoseconds; 0 означает без ограничения.
@@ -118,19 +162,6 @@ func (c *Client) Query(metric string, labels Labels, from, to int64) ([]SeriesRe
 	return results, nil
 }
 
-// Delete удаляет точки по временному диапазону.
-func (c *Client) Delete(metric string, labels Labels, from, to int64) error {
-	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
-	defer cancel()
-
-	_, err := c.rpc.Delete(ctx, &pb.DeleteRequest{
-		Metric: metric,
-		Labels: labels,
-		From:   from,
-		To:     to,
-	})
-	return err
-}
 
 // Subscribe возвращает канал с новыми точками в реальном времени.
 // Подписка активна пока ctx не отменён.
@@ -160,6 +191,18 @@ func (c *Client) Subscribe(ctx context.Context, metric string, labels Labels) (<
 	}()
 
 	return ch, nil
+}
+
+// Metrics возвращает список всех метрик в БД.
+func (c *Client) Metrics() ([]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+
+	resp, err := c.rpc.Metrics(ctx, &pb.MetricsRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Metrics, nil
 }
 
 // Health возвращает статус и версию сервера.

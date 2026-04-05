@@ -6,14 +6,15 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/bbvtaev/pulse-core/internal/chunk"
-	cfg "github.com/bbvtaev/pulse-core/internal/config"
-	"github.com/bbvtaev/pulse-core/internal/model"
-	"github.com/bbvtaev/pulse-core/internal/wal"
+	"github.com/bbvtaev/solenix-core/internal/chunk"
+	cfg "github.com/bbvtaev/solenix-core/internal/config"
+	"github.com/bbvtaev/solenix-core/internal/model"
+	"github.com/bbvtaev/solenix-core/internal/wal"
 )
 
 const walSyncInterval = 100 * time.Millisecond
@@ -44,12 +45,14 @@ type DB struct {
 	shards    [numShards]seriesShard
 	metricIdx *metricIndex
 
-	wm     *wal.Manager
-	cw     *chunk.Writer
-	config cfg.Config
+	wm        *wal.Manager
+	cw        *chunk.Writer
+	config    cfg.Config
+	chunksDir string
 
-	closeCh chan struct{}
-	walDone chan struct{}
+	closeCh     chan struct{}
+	walDone     chan struct{}
+	flushedUpTo atomic.Int64 // max timestamp успешно записанный в chunks
 
 	subsMu sync.RWMutex
 	subs   map[uint64]*subscription
@@ -92,6 +95,7 @@ func Open(config cfg.Config) (*DB, error) {
 	db := &DB{
 		metricIdx: newMetricIndex(),
 		config:    config,
+		chunksDir: chunksDir,
 		closeCh:   make(chan struct{}),
 		walDone:   make(chan struct{}),
 		subs:      make(map[uint64]*subscription),
@@ -101,16 +105,13 @@ func Open(config cfg.Config) (*DB, error) {
 		db.shards[i].series = make(map[seriesID]*series)
 	}
 
-	// 1. Загружаем chunks (исторические данные)
-	chunkRecords, err := chunk.ReadAllChunks(chunksDir)
-	if err != nil {
-		return nil, fmt.Errorf("load chunks: %w", err)
-	}
-	for _, rec := range chunkRecords {
-		db.applyRecord(rec)
+	// Определяем flushedUpTo из существующих chunk-файлов (для корректного
+	// восстановления после сбоя: WAL может содержать точки, уже записанные в chunks)
+	if ft := maxChunkTS(chunksDir); ft > 0 {
+		db.flushedUpTo.Store(ft)
 	}
 
-	// 2. Replay всех WAL сегментов
+	// 1. Replay всех WAL сегментов (горячий буфер)
 	walPaths, err := wal.ListSegmentPaths(walDir)
 	if err != nil {
 		return nil, fmt.Errorf("list wal segments: %w", err)
@@ -147,6 +148,9 @@ func (db *DB) bgLoop() {
 	chunkFlushTicker := time.NewTicker(db.config.FlushInterval)
 	defer chunkFlushTicker.Stop()
 
+	compactionTicker := time.NewTicker(db.config.FlushInterval * 5)
+	defer compactionTicker.Stop()
+
 	var retentionC <-chan time.Time
 	if db.config.RetentionDuration > 0 {
 		interval := db.config.RetentionDuration / 10
@@ -170,13 +174,16 @@ func (db *DB) bgLoop() {
 			}
 		case <-chunkFlushTicker.C:
 			_ = db.flushToChunks()
+		case <-compactionTicker.C:
+			_ = chunk.Compact(db.chunksDir, db.config.CompactionThreshold)
 		case <-retentionC:
 			db.enforceRetention()
 		}
 	}
 }
 
-// flushToChunks ротирует WAL, пишет sealed сегмент в chunks и удаляет его.
+// flushToChunks ротирует WAL, пишет sealed сегмент в chunks, удаляет его
+// и выгружает сброшенные точки из памяти.
 func (db *DB) flushToChunks() error {
 	sealedPath, err := db.wm.Rotate()
 	if err != nil {
@@ -192,7 +199,7 @@ func (db *DB) flushToChunks() error {
 		return nil
 	}
 
-	// Группируем записи по метрике → series
+	var maxFlushedTS int64
 	metricSeries := make(map[string]map[seriesID]*series)
 	for _, rec := range records {
 		id := seriesID(model.HashSeries(rec.Metric, rec.Labels))
@@ -210,6 +217,9 @@ func (db *DB) flushToChunks() error {
 		}
 		for _, p := range rec.Points {
 			insertPointSorted(&ser.points, p)
+			if p.Timestamp > maxFlushedTS {
+				maxFlushedTS = p.Timestamp
+			}
 		}
 	}
 
@@ -227,7 +237,81 @@ func (db *DB) flushToChunks() error {
 		}
 	}
 
-	return os.Remove(sealedPath)
+	if err := os.Remove(sealedPath); err != nil {
+		return err
+	}
+
+	if maxFlushedTS > 0 {
+		db.flushedUpTo.Store(maxFlushedTS)
+		db.evictFlushedPoints(maxFlushedTS)
+	}
+	return nil
+}
+
+// evictFlushedPoints удаляет из памяти все точки с timestamp <= upTo.
+// Вызывается после успешной записи chunk, чтобы память хранила только горячий буфер.
+func (db *DB) evictFlushedPoints(upTo int64) {
+	for i := range db.shards {
+		sh := &db.shards[i]
+		sh.mu.Lock()
+		var toRemove []struct {
+			id     seriesID
+			metric string
+		}
+		for id, ser := range sh.series {
+			keepFrom := sort.Search(len(ser.points), func(j int) bool {
+				return ser.points[j].Timestamp > upTo
+			})
+			if keepFrom == 0 {
+				continue // нечего выгружать
+			}
+			if keepFrom == len(ser.points) {
+				delete(sh.series, id)
+				toRemove = append(toRemove, struct {
+					id     seriesID
+					metric string
+				}{id, ser.metric})
+			} else {
+				fresh := make([]model.Point, len(ser.points)-keepFrom)
+				copy(fresh, ser.points[keepFrom:])
+				ser.points = fresh
+			}
+		}
+		sh.mu.Unlock()
+		for _, r := range toRemove {
+			db.metricIdx.remove(r.metric, r.id)
+		}
+	}
+}
+
+// maxChunkTS возвращает максимальный timestamp среди всех chunk-файлов.
+// Читает только заголовки (24 байта на файл) — операция быстрая.
+func maxChunkTS(chunksDir string) int64 {
+	var maxTS int64
+	entries, err := os.ReadDir(chunksDir)
+	if err != nil {
+		return 0
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		metricDir := filepath.Join(chunksDir, entry.Name())
+		files, err := os.ReadDir(metricDir)
+		if err != nil {
+			continue
+		}
+		for _, cf := range files {
+			if cf.IsDir() || !strings.HasSuffix(cf.Name(), ".chunk") {
+				continue
+			}
+			_, ts, err := chunk.ChunkTimeRange(filepath.Join(metricDir, cf.Name()))
+			if err == nil && ts > maxTS {
+				maxTS = ts
+			}
+		}
+	}
+	return maxTS
 }
 
 // Close закрывает БД и сбрасывает WAL.
@@ -237,8 +321,8 @@ func (db *DB) Close() error {
 	return db.wm.Close()
 }
 
-// Write записывает одно или несколько значений для метрики с текущим timestamp.
-func (db *DB) Write(metric string, labels map[string]string, value ...float64) error {
+// Push записывает одно или несколько значений для метрики с текущим timestamp.
+func (db *DB) Push(metric string, labels map[string]string, value ...float64) error {
 	if metric == "" {
 		return errors.New("metric is required")
 	}
@@ -252,21 +336,21 @@ func (db *DB) Write(metric string, labels map[string]string, value ...float64) e
 		points[i] = model.Point{Timestamp: ts, Value: v}
 	}
 
-	return db.writeBatch(metric, labels, points)
+	return db.pushBatch(metric, labels, points)
 }
 
-// WriteBatch записывает точки с произвольными timestamp (используется gRPC-сервером).
-func (db *DB) WriteBatch(metric string, labels map[string]string, points []model.Point) error {
+// PushBatch записывает точки с произвольными timestamp (используется gRPC-сервером).
+func (db *DB) PushBatch(metric string, labels map[string]string, points []model.Point) error {
 	if metric == "" {
 		return errors.New("metric is required")
 	}
 	if len(points) == 0 {
 		return errors.New("at least one point is required")
 	}
-	return db.writeBatch(metric, labels, points)
+	return db.pushBatch(metric, labels, points)
 }
 
-func (db *DB) writeBatch(metric string, labels map[string]string, points []model.Point) error {
+func (db *DB) pushBatch(metric string, labels map[string]string, points []model.Point) error {
 	labelsCopy := cloneLabels(labels)
 	pointsCopy := make([]model.Point, len(points))
 	copy(pointsCopy, points)
@@ -315,6 +399,10 @@ func (db *DB) applyRecord(rec model.Record) {
 func (db *DB) enforceRetention() {
 	cutoff := time.Now().Add(-db.config.RetentionDuration).UnixNano()
 
+	// 1. Удаляем полностью устаревшие chunk-файлы (max_ts < cutoff)
+	db.deleteExpiredChunks(cutoff)
+
+	// 2. Вычищаем устаревшие точки из горячего буфера
 	for i := range db.shards {
 		sh := &db.shards[i]
 		sh.mu.Lock()
@@ -328,7 +416,9 @@ func (db *DB) enforceRetention() {
 				return ser.points[j].Timestamp >= cutoff
 			})
 			if start > 0 {
-				ser.points = ser.points[start:]
+				trimmed := make([]model.Point, len(ser.points)-start)
+				copy(trimmed, ser.points[start:])
+				ser.points = trimmed
 			}
 			if len(ser.points) == 0 {
 				delete(sh.series, id)
@@ -342,6 +432,36 @@ func (db *DB) enforceRetention() {
 
 		for _, r := range toRemove {
 			db.metricIdx.remove(r.metric, r.id)
+		}
+	}
+}
+
+func (db *DB) deleteExpiredChunks(cutoff int64) {
+	entries, err := os.ReadDir(db.chunksDir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		metricDir := filepath.Join(db.chunksDir, entry.Name())
+		files, err := os.ReadDir(metricDir)
+		if err != nil {
+			continue
+		}
+		for _, cf := range files {
+			if cf.IsDir() || !strings.HasSuffix(cf.Name(), ".chunk") {
+				continue
+			}
+			path := filepath.Join(metricDir, cf.Name())
+			_, maxTS, err := chunk.ChunkTimeRange(path)
+			if err != nil {
+				continue
+			}
+			if maxTS < cutoff {
+				_ = os.Remove(path)
+			}
 		}
 	}
 }
@@ -422,8 +542,8 @@ func (db *DB) broadcastWatchers() {
 	}
 }
 
-// DrainWAL принудительно сбрасывает WAL на диск (fsync).
-func (db *DB) DrainWAL() {
+// Drain принудительно сбрасывает WAL на диск (fsync).
+func (db *DB) Drain() {
 	db.wm.Flush()
 }
 

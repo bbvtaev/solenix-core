@@ -1,1 +1,1 @@
-<h1  align="center">Pulse v4.0.0-alpha</h1>
+<h1  align="center">Solenix v4.0.0-alpha</h1>

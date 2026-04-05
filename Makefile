@@ -1,8 +1,8 @@
 GO      ?= go
 PKG     := ./...
-MOD     := github.com/bbvtaev/pulse-core
-BINARY  := pulse
-PROTO   := api/proto/pulse.proto
+MOD     := github.com/bbvtaev/solenix-core
+BINARY  := solenix
+PROTO   := api/proto/solenix.proto
 
 BENCH_TIME ?= 10s
 
@@ -55,7 +55,7 @@ lint:
 
 .PHONY: build
 build:
-	$(GO) build -o bin/$(BINARY) ./cmd
+	$(GO) build -o bin/$(BINARY) ./cmd/solenix
 
 .PHONY: build-all
 build-all:

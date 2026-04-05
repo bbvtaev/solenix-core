@@ -11,8 +11,137 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bbvtaev/pulse-core/internal/model"
+	"github.com/bbvtaev/solenix-core/internal/model"
 )
+
+// ChunkTimeRange reads only the 24-byte header of a chunk file and returns its time range.
+// This is a fast O(1) operation used to skip irrelevant files during queries.
+func ChunkTimeRange(path string) (minTS, maxTS int64, err error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer f.Close()
+
+	hdr := make([]byte, headerSize)
+	if _, err := io.ReadFull(f, hdr); err != nil {
+		return 0, 0, err
+	}
+	if binary.LittleEndian.Uint32(hdr[0:4]) != Magic {
+		return 0, 0, fmt.Errorf("invalid chunk magic in %s", path)
+	}
+	minTS = int64(binary.LittleEndian.Uint64(hdr[8:16]))
+	maxTS = int64(binary.LittleEndian.Uint64(hdr[16:24]))
+	return minTS, maxTS, nil
+}
+
+// QueryChunks reads points from chunk files for a metric in the time range [from, to].
+// labels is a filter (nil = match any). from/to == 0 means no bound.
+func QueryChunks(chunksDir, metric string, labels map[string]string, from, to int64) ([]model.SeriesResult, error) {
+	metricDir := filepath.Join(chunksDir, sanitizeMetric(metric))
+	entries, err := os.ReadDir(metricDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var files []string
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".chunk") {
+			files = append(files, filepath.Join(metricDir, e.Name()))
+		}
+	}
+	sort.Strings(files)
+
+	seriesMap := make(map[uint64]*model.SeriesResult)
+	cr := reader{}
+
+	for _, path := range files {
+		minTS, maxTS, err := ChunkTimeRange(path)
+		if err != nil {
+			continue // skip unreadable files
+		}
+		// Skip files that don't overlap [from, to]
+		if from > 0 && maxTS < from {
+			continue
+		}
+		if to > 0 && minTS > to {
+			continue
+		}
+
+		recs, err := cr.readFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("read chunk %s: %w", path, err)
+		}
+		for _, rec := range recs {
+			if !chunkLabelsMatch(labels, rec.Labels) {
+				continue
+			}
+			pts := chunkFilterPoints(rec.Points, from, to)
+			if len(pts) == 0 {
+				continue
+			}
+			id := model.HashSeries(metric, rec.Labels)
+			if sr, ok := seriesMap[id]; ok {
+				sr.Points = append(sr.Points, pts...)
+			} else {
+				lblCopy := make(map[string]string, len(rec.Labels))
+				for k, v := range rec.Labels {
+					lblCopy[k] = v
+				}
+				seriesMap[id] = &model.SeriesResult{
+					Metric: metric,
+					Labels: lblCopy,
+					Points: pts,
+				}
+			}
+		}
+	}
+
+	result := make([]model.SeriesResult, 0, len(seriesMap))
+	for _, sr := range seriesMap {
+		result = append(result, *sr)
+	}
+	return result, nil
+}
+
+func chunkLabelsMatch(filter, actual map[string]string) bool {
+	if len(filter) == 0 {
+		return true
+	}
+	for k, v := range filter {
+		if actual[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
+func chunkFilterPoints(points []model.Point, from, to int64) []model.Point {
+	if len(points) == 0 {
+		return nil
+	}
+	start := 0
+	if from > 0 {
+		start = sort.Search(len(points), func(i int) bool {
+			return points[i].Timestamp >= from
+		})
+	}
+	end := len(points)
+	if to > 0 {
+		end = sort.Search(len(points), func(i int) bool {
+			return points[i].Timestamp > to
+		})
+	}
+	if start >= end {
+		return nil
+	}
+	out := make([]model.Point, end-start)
+	copy(out, points[start:end])
+	return out
+}
 
 const versionRaw byte = 0x01
 

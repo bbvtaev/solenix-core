@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <link rel="icon" type="image/x-icon" href="./solenix-logo2.svg">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pulse</title>
+  <title>Solenix</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -132,7 +133,8 @@
 <body>
 
 <header>
-  <span class="logo">⚡ Pulse</span>
+  <img src="./solenix-logo2.svg" alt="Solenix" style="height:24px;width:24px;">
+  <span class="logo">Solenix</span>
   <span class="sep">|</span>
   <span class="ver" id="version">loading...</span>
   <div class="hright">
@@ -174,7 +176,7 @@
         fetch('/api/latest').then(r => r.json()),
       ]);
 
-      document.getElementById('version').textContent = `pulse-core ${health.version}`;
+      document.getElementById('version').textContent = `solenix-core ${health.version}`;
       document.getElementById('dot').classList.remove('dead');
       document.getElementById('status').textContent = 'ok';
 

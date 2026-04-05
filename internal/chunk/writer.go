@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bbvtaev/pulse-core/internal/model"
+	"github.com/bbvtaev/solenix-core/internal/model"
 )
 
 const versionGorilla byte = 0x02

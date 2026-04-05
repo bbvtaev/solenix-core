@@ -4,21 +4,22 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
-	pulse "github.com/bbvtaev/pulse-core"
-	pb "github.com/bbvtaev/pulse-core/api/proto"
+	solenix "github.com/bbvtaev/solenix-core"
+	pb "github.com/bbvtaev/solenix-core/api/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-// Server реализует gRPC-интерфейс PulseDB поверх storage engine.
+// Server реализует gRPC-интерфейс SolenixDB поверх storage engine.
 type Server struct {
-	pb.UnimplementedPulseDBServer
-	db *pulse.DB
+	pb.UnimplementedSolenixDBServer
+	db *solenix.DB
 }
 
-func New(db *pulse.DB) *Server {
+func New(db *solenix.DB) *Server {
 	return &Server{db: db}
 }
 
@@ -30,26 +31,59 @@ func (s *Server) Listen(addr string) error {
 	}
 
 	grpcSrv := grpc.NewServer()
-	pb.RegisterPulseDBServer(grpcSrv, s)
+	pb.RegisterSolenixDBServer(grpcSrv, s)
 
 	return grpcSrv.Serve(lis)
 }
 
-func (s *Server) Write(_ context.Context, req *pb.WriteRequest) (*pb.WriteResponse, error) {
+func (s *Server) Push(_ context.Context, req *pb.PushRequest) (*pb.PushResponse, error) {
 	var written int32
 
 	for _, ser := range req.Series {
-		points := make([]pulse.Point, len(ser.Points))
+		points := make([]solenix.Point, len(ser.Points))
 		for i, p := range ser.Points {
-			points[i] = pulse.Point{Timestamp: p.Timestamp, Value: p.Value}
+			points[i] = solenix.Point{Timestamp: p.Timestamp, Value: p.Value}
 		}
-		if err := s.db.WriteBatch(ser.Metric, ser.Labels, points); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "write: %v", err)
+		if err := s.db.PushBatch(ser.Metric, ser.Labels, points); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "push: %v", err)
 		}
 		written++
 	}
 
-	return &pb.WriteResponse{Written: written}, nil
+	return &pb.PushResponse{Written: written}, nil
+}
+
+func (s *Server) QueryAgg(_ context.Context, req *pb.QueryAggRequest) (*pb.QueryAggResponse, error) {
+	window, err := time.ParseDuration(req.Window)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid window %q: %v", req.Window, err)
+	}
+
+	agg, err := solenix.ParseAggType(req.Agg)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	results, err := s.db.QueryAgg(req.Metric, req.Labels, req.From, req.To, window, agg)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	pbSeries := make([]*pb.AggSeries, 0, len(results))
+	for _, r := range results {
+		pts := make([]*pb.AggPoint, len(r.Points))
+		for i, p := range r.Points {
+			pts[i] = &pb.AggPoint{Timestamp: p.Timestamp, Value: p.Value}
+		}
+		pbSeries = append(pbSeries, &pb.AggSeries{
+			Metric: r.Metric,
+			Labels: r.Labels,
+			Window: req.Window,
+			Points: pts,
+		})
+	}
+
+	return &pb.QueryAggResponse{Series: pbSeries}, nil
 }
 
 func (s *Server) Query(_ context.Context, req *pb.QueryRequest) (*pb.QueryResponse, error) {
@@ -74,15 +108,9 @@ func (s *Server) Query(_ context.Context, req *pb.QueryRequest) (*pb.QueryRespon
 	return &pb.QueryResponse{Series: pbSeries}, nil
 }
 
-func (s *Server) Delete(_ context.Context, req *pb.DeleteRequest) (*pb.DeleteResponse, error) {
-	if err := s.db.Delete(req.Metric, req.Labels, req.From, req.To); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
-	}
-	return &pb.DeleteResponse{}, nil
-}
 
 // Subscribe — server-side streaming: шлёт DataPoint в реальном времени.
-func (s *Server) Subscribe(req *pb.SubscribeRequest, stream pb.PulseDB_SubscribeServer) error {
+func (s *Server) Subscribe(req *pb.SubscribeRequest, stream pb.SolenixDB_SubscribeServer) error {
 	id, ch := s.db.Subscribe(req.Metric, req.Labels)
 	defer s.db.Unsubscribe(id)
 
@@ -107,6 +135,10 @@ func (s *Server) Subscribe(req *pb.SubscribeRequest, stream pb.PulseDB_Subscribe
 func (s *Server) Health(_ context.Context, _ *pb.HealthRequest) (*pb.HealthResponse, error) {
 	return &pb.HealthResponse{
 		Status:  "ok",
-		Version: pulse.Version,
+		Version: solenix.Version,
 	}, nil
+}
+
+func (s *Server) Metrics(_ context.Context, _ *pb.MetricsRequest) (*pb.MetricsResponse, error) {
+	return &pb.MetricsResponse{Metrics: s.db.Metrics()}, nil
 }

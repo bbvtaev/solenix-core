@@ -1,6 +1,9 @@
 package model
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 const Version = "2.0.0-alpha"
 
@@ -30,6 +33,15 @@ const (
 	AggSum   AggType = "sum"
 	AggCount AggType = "count"
 )
+
+func ParseAggType(s string) (AggType, error) {
+	switch AggType(s) {
+	case AggAvg, AggMin, AggMax, AggSum, AggCount:
+		return AggType(s), nil
+	default:
+		return "", fmt.Errorf("unknown agg type %q, expected avg/min/max/sum/count", s)
+	}
+}
 
 type AggPoint struct {
 	Timestamp int64   `json:"timestamp"`

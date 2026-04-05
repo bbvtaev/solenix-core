@@ -1,0 +1,34 @@
+# solenix.yaml — конфигурация solenix-core сервера
+# Запуск: ./solenix-core -config solenix.yaml
+
+# Режим работы: self-hosted | cloud
+mode: self-hosted
+
+# gRPC адрес сервера
+grpc_addr: ":50051"
+
+# HTTP адрес UI и REST API (self-hosted, открой localhost:8080)
+http_addr: ":8080"
+
+# Путь к WAL файлу (данные на диске)
+wal_path: "./data/metrics.wal"
+
+# Retention policy: как долго хранить точки (0 = вечно)
+# Примеры: "24h", "168h" (7 дней), "720h" (30 дней)
+retention: "720h"
+
+# Как часто сбрасывать WAL на диск
+flush_interval: "100ms"
+
+# Авторизация (только для mode: cloud)
+auth:
+  enabled: false
+  api_keys: []
+
+# Встроенный сбор системных метрик хоста
+collector:
+  enabled: true
+  interval: "15s"
+  # api_keys:
+  #   - "pk_live_abc123"
+  #   - "pk_live_xyz789"

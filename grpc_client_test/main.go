@@ -1,4 +1,4 @@
-// load-gen — генератор погодных метрик для pulse-core.
+// load-gen — генератор погодных метрик для solenix-core.
 //
 // Симулирует данные с метеостанций нескольких городов:
 //   weather_temperature_celsius   — температура воздуха
@@ -30,7 +30,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	pb "github.com/bbvtaev/pulse-core/api/proto"
+	pb "github.com/bbvtaev/solenix-core/api/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -183,7 +183,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	c := pb.NewPulseDBClient(conn)
+	c := pb.NewSolenixDBClient(conn)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	health, err := c.Health(ctx, &pb.HealthRequest{})
@@ -266,7 +266,7 @@ func main() {
 		for _, s := range stations {
 			series := s.tick(rng, t)
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			_, err := c.Write(ctx, &pb.WriteRequest{Series: series})
+			_, err := c.Push(ctx, &pb.PushRequest{Series: series})
 			cancel()
 			if err != nil {
 				totalErrors.Add(1)

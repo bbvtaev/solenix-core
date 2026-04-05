@@ -6,17 +6,18 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/bbvtaev/pulse-core/internal/model"
+	"github.com/bbvtaev/solenix-core/internal/model"
 	"gopkg.in/yaml.v3"
 )
 
 // Config задаёт параметры запуска БД и серверов.
 type Config struct {
 	// Storage
-	DataDir           string        `yaml:"data_dir"`
-	WALMaxSize        int64         `yaml:"wal_max_size"`  // байт; default 32 MiB
-	RetentionDuration time.Duration `yaml:"retention"`
-	FlushInterval     time.Duration `yaml:"flush_interval"` // интервал flush в chunks; default 2m
+	DataDir             string        `yaml:"data_dir"`
+	WALMaxSize          int64         `yaml:"wal_max_size"`    // байт; default 32 MiB
+	RetentionDuration   time.Duration `yaml:"retention"`
+	FlushInterval       time.Duration `yaml:"flush_interval"`  // интервал flush в chunks; default 2m
+	CompactionThreshold int           `yaml:"compaction_threshold"` // файлов на метрику до компакции; default 10
 
 	// Server
 	Mode     model.ServerMode `yaml:"mode"`
@@ -112,12 +113,13 @@ func LoadConfig(path string) (Config, error) {
 // DefaultConfig возвращает конфиг со значениями по умолчанию.
 func DefaultConfig() Config {
 	return Config{
-		DataDir:       defaultDataDir(),
-		WALMaxSize:    32 << 20, // 32 MiB
-		Mode:          model.ModeSelfHosted,
-		GRPCAddr:      ":50051",
-		HTTPAddr:      ":8080",
-		FlushInterval: 2 * time.Minute,
+		DataDir:             defaultDataDir(),
+		WALMaxSize:          32 << 20, // 32 MiB
+		Mode:                model.ModeSelfHosted,
+		GRPCAddr:            ":50051",
+		HTTPAddr:            ":8080",
+		FlushInterval:       2 * time.Minute,
+		CompactionThreshold: 10,
 		Collector: model.CollectorConfig{
 			Enabled:  true,
 			Interval: 15 * time.Second,
@@ -130,5 +132,5 @@ func defaultDataDir() string {
 	if err != nil {
 		return "./data"
 	}
-	return filepath.Join(home, "pulse", "data")
+	return filepath.Join(home, "solenix", "data")
 }

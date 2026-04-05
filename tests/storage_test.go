@@ -1,4 +1,4 @@
-package pulse_test
+package solenix_test
 
 import (
 	"os"
@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	pulse "github.com/bbvtaev/pulse-core"
+	solenix "github.com/bbvtaev/solenix-core"
 )
 
 // TestChunkFlush проверяет полный цикл: Write → flushToChunks → restart → Query.
 func TestChunkFlush(t *testing.T) {
 	dir := t.TempDir()
 
-	db, err := pulse.Open(pulse.Config{
+	db, err := solenix.Open(solenix.Config{
 		DataDir:       dir,
 		FlushInterval: 50 * time.Millisecond, // быстрый flush для теста
 	})
@@ -21,10 +21,10 @@ func TestChunkFlush(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 
-	if err := db.Write("cpu_usage", map[string]string{"host": "srv1"}, 0.5, 0.7); err != nil {
+	if err := db.Push("cpu_usage", map[string]string{"host": "srv1"}, 0.5, 0.7); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
-	db.DrainWAL()
+	db.Drain()
 
 	// Даём bgLoop сделать flush
 	time.Sleep(200 * time.Millisecond)
@@ -44,7 +44,7 @@ func TestChunkFlush(t *testing.T) {
 	}
 
 	// Перезапуск: данные должны загрузиться из chunks
-	db2, err := pulse.Open(pulse.Config{DataDir: dir})
+	db2, err := solenix.Open(solenix.Config{DataDir: dir})
 	if err != nil {
 		t.Fatalf("second Open: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestChunkFlush(t *testing.T) {
 func TestWALRotation(t *testing.T) {
 	dir := t.TempDir()
 
-	db, err := pulse.Open(pulse.Config{
+	db, err := solenix.Open(solenix.Config{
 		DataDir:       dir,
 		WALMaxSize:    1, // 1 байт — каждая запись вызывает ротацию
 		FlushInterval: 50 * time.Millisecond,
@@ -76,11 +76,11 @@ func TestWALRotation(t *testing.T) {
 	}
 
 	for i := 0; i < 5; i++ {
-		if err := db.Write("metric", nil, float64(i)); err != nil {
+		if err := db.Push("metric", nil, float64(i)); err != nil {
 			t.Fatalf("Write %d: %v", i, err)
 		}
 	}
-	db.DrainWAL()
+	db.Drain()
 	time.Sleep(200 * time.Millisecond)
 
 	if err := db.Close(); err != nil {
@@ -88,7 +88,7 @@ func TestWALRotation(t *testing.T) {
 	}
 
 	// После перезапуска все 5 точек должны быть видны
-	db2, err := pulse.Open(pulse.Config{DataDir: dir})
+	db2, err := solenix.Open(solenix.Config{DataDir: dir})
 	if err != nil {
 		t.Fatalf("second Open: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestWALRotation(t *testing.T) {
 func TestMultiMetricChunks(t *testing.T) {
 	dir := t.TempDir()
 
-	db, err := pulse.Open(pulse.Config{
+	db, err := solenix.Open(solenix.Config{
 		DataDir:       dir,
 		FlushInterval: 50 * time.Millisecond,
 	})
@@ -118,10 +118,10 @@ func TestMultiMetricChunks(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 
-	_ = db.Write("cpu", nil, 1.0)
-	_ = db.Write("mem", nil, 2.0)
-	_ = db.Write("disk", nil, 3.0)
-	db.DrainWAL()
+	_ = db.Push("cpu", nil, 1.0)
+	_ = db.Push("mem", nil, 2.0)
+	_ = db.Push("disk", nil, 3.0)
+	db.Drain()
 
 	time.Sleep(200 * time.Millisecond)
 
@@ -142,7 +142,7 @@ func TestMultiMetricChunks(t *testing.T) {
 	}
 
 	// Reload
-	db2, err := pulse.Open(pulse.Config{DataDir: dir})
+	db2, err := solenix.Open(solenix.Config{DataDir: dir})
 	if err != nil {
 		t.Fatalf("second Open: %v", err)
 	}

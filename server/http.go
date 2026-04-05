@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strconv"
 
-	pulse "github.com/bbvtaev/pulse-core"
+	solenix "github.com/bbvtaev/solenix-core"
 )
 
 //go:embed static
@@ -17,12 +17,12 @@ var staticFiles embed.FS
 
 // HTTPServer отдаёт embedded UI и REST API для self-hosted режима.
 type HTTPServer struct {
-	db      *pulse.DB
+	db      *solenix.DB
 	version string
 }
 
-func NewHTTP(db *pulse.DB) *HTTPServer {
-	return &HTTPServer{db: db, version: pulse.Version}
+func NewHTTP(db *solenix.DB) *HTTPServer {
+	return &HTTPServer{db: db, version: solenix.Version}
 }
 
 // ListenHTTP запускает HTTP сервер на заданном адресе (например, ":8080").
