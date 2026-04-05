@@ -47,7 +47,7 @@ type Client struct {
 	timeout time.Duration
 }
 
-// NewClient подключается к серверу solenix-core по адресу addr (например "localhost:50051").
+// NewClient подключается к серверу solenix-core по адресу addr (например "localhost:8731").
 func NewClient(addr string) (*Client, error) {
 	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {

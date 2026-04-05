@@ -132,8 +132,33 @@
 </head>
 <body>
 
+<div id="loading-overlay" style="position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:1000;transition:opacity 0.45s ease;">
+  <svg id="loading-logo" width="88" height="88" viewBox="0 0 49 49" fill="none" xmlns="http://www.w3.org/2000/svg"
+    style="opacity:0;transform:scale(0.7);transition:opacity 0.3s ease,transform 0.3s cubic-bezier(.34,1.56,.64,1);">
+    <g id="loading-outer" style="transform-origin: 24.36px 24.36px;">
+      <path fill="#F78F3F" d="
+        M27.5907 34.1098V48.4886C25.472 48.7766 23.2707 48.7578 21.128 48.4766V40.0751H24.36V38.0871H21.128V31.4431C22.1147 31.8938 23.204 32.1618 24.36 32.1618C26.6547 32.1618 28.7027 31.1485 30.1333 29.5671H38.0987V34.1098H27.5907Z
+        M8.632 21.1151V24.3471H10.62V21.1151H17.264C16.812 22.1045 16.544 23.1911 16.544 24.3471C16.544 26.6431 17.5573 28.6898 19.1387 30.1205V38.0871H14.596V27.5791L0.218653 27.5778C0.0746527 26.5151 0 25.4365 0 24.3471C0 23.2671 0.0933345 22.1858 0.234668 21.1151H8.632Z
+        M21.128 14.5845V0.207142C23.2507 -0.0795248 25.456 -0.062198 27.5907 0.219135L27.592 8.62047H24.36V10.6085H27.592V17.2538C26.604 16.8005 25.5147 16.5325 24.36 16.5325C22.0627 16.5325 20.016 17.5458 18.5853 19.1285H10.62V14.5845H21.128Z
+        M40.0867 27.5791V24.3471H38.0987V27.5791H31.4547C31.9067 26.5911 32.1747 25.5031 32.1747 24.3471C32.1747 22.0511 31.1613 20.0045 29.5787 18.5738V10.6085H34.1213V21.1151L48.5 21.1178C48.644 22.1805 48.7187 23.2578 48.7187 24.3471C48.7187 25.4298 48.6253 26.5098 48.484 27.5791H40.0867Z
+      "/>
+    </g>
+    <circle fill="#F78F3F" cx="24.36" cy="24.36" r="5.82"/>
+  </svg>
+</div>
+
 <header>
-  <img src="./solenix-logo2.svg" alt="Solenix" style="height:24px;width:24px;">
+  <svg id="header-logo" width="24" height="24" viewBox="0 0 49 49" fill="none" xmlns="http://www.w3.org/2000/svg" style="cursor:pointer;user-select:none;-webkit-user-select:none;flex-shrink:0;">
+    <g id="header-outer" style="transform-origin: 24.36px 24.36px;">
+      <path fill="#F78F3F" d="
+        M27.5907 34.1098V48.4886C25.472 48.7766 23.2707 48.7578 21.128 48.4766V40.0751H24.36V38.0871H21.128V31.4431C22.1147 31.8938 23.204 32.1618 24.36 32.1618C26.6547 32.1618 28.7027 31.1485 30.1333 29.5671H38.0987V34.1098H27.5907Z
+        M8.632 21.1151V24.3471H10.62V21.1151H17.264C16.812 22.1045 16.544 23.1911 16.544 24.3471C16.544 26.6431 17.5573 28.6898 19.1387 30.1205V38.0871H14.596V27.5791L0.218653 27.5778C0.0746527 26.5151 0 25.4365 0 24.3471C0 23.2671 0.0933345 22.1858 0.234668 21.1151H8.632Z
+        M21.128 14.5845V0.207142C23.2507 -0.0795248 25.456 -0.062198 27.5907 0.219135L27.592 8.62047H24.36V10.6085H27.592V17.2538C26.604 16.8005 25.5147 16.5325 24.36 16.5325C22.0627 16.5325 20.016 17.5458 18.5853 19.1285H10.62V14.5845H21.128Z
+        M40.0867 27.5791V24.3471H38.0987V27.5791H31.4547C31.9067 26.5911 32.1747 25.5031 32.1747 24.3471C32.1747 22.0511 31.1613 20.0045 29.5787 18.5738V10.6085H34.1213V21.1151L48.5 21.1178C48.644 22.1805 48.7187 23.2578 48.7187 24.3471C48.7187 25.4298 48.6253 26.5098 48.484 27.5791H40.0867Z
+      "/>
+    </g>
+    <circle fill="#F78F3F" cx="24.36" cy="24.36" r="5.82"/>
+  </svg>
   <span class="logo">Solenix</span>
   <span class="sep">|</span>
   <span class="ver" id="version">loading...</span>
@@ -230,6 +255,83 @@
 
   load();
   setInterval(load, REFRESH_MS);
+</script>
+
+<script>
+(function() {
+  const overlay = document.getElementById('loading-overlay');
+  const logoEl  = document.getElementById('loading-logo');
+  const outer   = document.getElementById('loading-outer');
+
+  let scale = 1, velocity = 0, target = 1;
+  let done = false;
+  const STIFFNESS = 0.3, DAMPING = 0.6;
+
+  function loop() {
+    const force = (target - scale) * STIFFNESS;
+    velocity = (velocity + force) * DAMPING;
+    scale += velocity;
+    outer.style.transform = `scale(${scale})`;
+
+    if (done && Math.abs(1 - scale) < 0.0005 && Math.abs(velocity) < 0.0005) {
+      outer.style.transform = 'scale(1)';
+      overlay.style.opacity = '0';
+      setTimeout(() => { overlay.style.display = 'none'; }, 450);
+      return;
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // pop logo in, then fire double-tap: press→10ms→release→10ms→press→10ms→release
+  setTimeout(() => {
+    logoEl.style.opacity = '1';
+    logoEl.style.transform = 'scale(1)';
+    setTimeout(() => {
+      requestAnimationFrame(loop);
+      target = 0.6;                                          // tap 1 down
+      setTimeout(() => { target = 1.0; }, 100);               // tap 1 up
+      setTimeout(() => { target = 0.6; }, 200);               // tap 2 down
+      setTimeout(() => { target = 1.0; }, 120);               // tap 2 up  — 400ms pause —
+      setTimeout(() => { target = 0.6; }, 300);              // tap 3 down
+      setTimeout(() => { target = 1.0; }, 300);              // tap 3 up
+      setTimeout(() => { target = 0.6; }, 500);              // tap 4 down
+      setTimeout(() => { target = 1.0; done = true; }, 500); // tap 4 up → settle → fade
+    }, 150);
+  }, 80);
+})();
+</script>
+
+<script>
+(function() {
+  const outer = document.getElementById('header-outer');
+  let scale = 1, velocity = 0, target = 1, rafId = null;
+  const STIFFNESS = 0.3, DAMPING = 0.6;
+
+  function loop() {
+    const force = (target - scale) * STIFFNESS;
+    velocity = (velocity + force) * DAMPING;
+    scale += velocity;
+    outer.style.transform = `scale(${scale})`;
+    if (Math.abs(target - scale) < 0.0005 && Math.abs(velocity) < 0.0005) {
+      scale = target;
+      outer.style.transform = `scale(${scale})`;
+      rafId = null;
+    } else {
+      rafId = requestAnimationFrame(loop);
+    }
+  }
+
+  function startAnim() {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(loop);
+  }
+
+  const svg = document.getElementById('header-logo');
+  svg.addEventListener('mousedown', () => { target = 0.6; startAnim(); });
+  window.addEventListener('mouseup',   () => { target = 1;   startAnim(); });
+  svg.addEventListener('touchstart', (e) => { e.preventDefault(); target = 0.6; startAnim(); }, { passive: false });
+  window.addEventListener('touchend', () => { target = 1; startAnim(); });
+})();
 </script>
 </body>
 </html>

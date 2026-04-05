@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-const Version = "2.0.0-alpha"
+const Version = "5.0.0-alpha"
 
 type Point struct {
 	Timestamp int64   `json:"timestamp"`

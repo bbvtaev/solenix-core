@@ -116,7 +116,7 @@ func DefaultConfig() Config {
 		DataDir:             defaultDataDir(),
 		WALMaxSize:          32 << 20, // 32 MiB
 		Mode:                model.ModeSelfHosted,
-		GRPCAddr:            ":50051",
+		GRPCAddr:            ":8731",
 		HTTPAddr:            ":8080",
 		FlushInterval:       2 * time.Minute,
 		CompactionThreshold: 10,
