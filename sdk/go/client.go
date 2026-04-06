@@ -21,6 +21,7 @@ import (
 
 	pb "github.com/bbvtaev/solenix-core/api/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -49,8 +50,17 @@ type Client struct {
 
 // NewClient подключается к серверу solenix-core по адресу addr (например "127.0.0.1:8731").
 func NewClient(addr string) (*Client, error) {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-
+	conn, err := grpc.NewClient(addr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithConnectParams(grpc.ConnectParams{
+			Backoff: backoff.Config{
+				BaseDelay:  50 * time.Millisecond,
+				Multiplier: 1.5,
+				MaxDelay:   5 * time.Second,
+			},
+			MinConnectTimeout: 5 * time.Second,
+		}),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("solenix: connect to %s: %w", addr, err)
 	}
