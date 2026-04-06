@@ -8,8 +8,9 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "solenix",
-	Short: "Solenix — lightweight time-series database",
+	Use:               "solenix",
+	Short:             "Solenix — lightweight time-series database",
+	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 }
 
 // --addr флаг доступен во всех subcommand-ах кроме serve
@@ -17,7 +18,7 @@ var serverAddr string
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&serverAddr, "addr", "localhost:8731", "solenix-core gRPC address")
-	rootCmd.AddCommand(serveCmd, writeCmd, queryCmd, healthCmd, metricsCmd)
+	rootCmd.AddCommand(serveCmd, pushCmd, queryCmd, healthCmd, metricsCmd)
 }
 
 func main() {

@@ -50,6 +50,7 @@ type Client struct {
 // NewClient подключается к серверу solenix-core по адресу addr (например "localhost:8731").
 func NewClient(addr string) (*Client, error) {
 	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
 	if err != nil {
 		return nil, fmt.Errorf("solenix: connect to %s: %w", addr, err)
 	}
@@ -161,7 +162,6 @@ func (c *Client) Query(metric string, labels Labels, from, to int64) ([]SeriesRe
 	}
 	return results, nil
 }
-
 
 // Subscribe возвращает канал с новыми точками в реальном времени.
 // Подписка активна пока ctx не отменён.

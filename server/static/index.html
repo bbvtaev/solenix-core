@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/x-icon" href="./solenix-logo2.svg">
+  <link rel="icon" type="image/x-icon" href="./solenix-logo.svg">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Solenix</title>
   <style>
@@ -45,6 +45,37 @@
     .hright { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
     .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
     .dot.dead { background: var(--danger); }
+
+    .cfg-btn {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      padding: 3px 10px; border-radius: 5px; font-size: 11px; cursor: pointer;
+      transition: border-color .15s, color .15s;
+    }
+    .cfg-btn:hover { border-color: var(--accent); color: var(--text); }
+
+    .cfg-panel {
+      display: none;
+      position: fixed; inset: 0; z-index: 500;
+      align-items: flex-start; justify-content: flex-end;
+      padding: 56px 16px 0;
+      pointer-events: none;
+    }
+    .cfg-panel.open { display: flex; }
+    .cfg-box {
+      pointer-events: all;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      min-width: 300px;
+      font-size: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.4);
+    }
+    .cfg-box h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 12px; }
+    .cfg-row { display: flex; justify-content: space-between; gap: 16px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+    .cfg-row:last-child { border-bottom: none; }
+    .cfg-key { color: var(--muted); }
+    .cfg-val { font-family: monospace; color: var(--text); text-align: right; }
 
     .toolbar {
       display: flex;
@@ -122,12 +153,70 @@
 
     .empty {
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
+      gap: 16px;
       padding: 80px 20px;
       color: var(--muted);
       font-size: 14px;
     }
+    .empty-icon { opacity: 0.18; }
+    .empty-title { font-size: 15px; font-weight: 600; color: var(--text); opacity: 0.5; }
+    .empty-hint { font-size: 12px; font-family: monospace; background: var(--surface); border: 1px solid var(--border); padding: 6px 14px; border-radius: 6px; color: var(--muted); }
+
+    tbody tr { cursor: pointer; }
+
+    /* Detail panel */
+    .detail {
+      position: fixed; top: 0; right: 0; bottom: 0;
+      width: 420px;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      transform: translateX(100%);
+      transition: transform .22s cubic-bezier(.4,0,.2,1);
+      z-index: 400;
+    }
+    .detail.open { transform: translateX(0); }
+
+    .detail-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .detail-title { font-family: monospace; color: var(--accent); font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .detail-close {
+      background: none; border: none; color: var(--muted);
+      font-size: 18px; cursor: pointer; line-height: 1; padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .detail-close:hover { color: var(--text); background: var(--border); }
+
+    .detail-meta {
+      padding: 10px 16px;
+      font-size: 11px; color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex; gap: 8px; flex-wrap: wrap;
+    }
+
+    .detail-body { flex: 1; overflow-y: auto; }
+    .detail-body::-webkit-scrollbar { width: 4px; }
+    .detail-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .detail-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .detail-table th {
+      text-align: left; padding: 8px 16px;
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .6px; color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; background: var(--surface);
+    }
+    .detail-table td { padding: 7px 16px; border-bottom: 1px solid rgba(255,255,255,.04); font-family: monospace; }
+    .detail-table tr:hover td { background: rgba(255,255,255,.02); }
+    .detail-loading { padding: 40px; text-align: center; color: var(--muted); font-size: 13px; }
   </style>
 </head>
 <body>
@@ -165,12 +254,32 @@
   <div class="hright">
     <div class="dot dead" id="dot"></div>
     <span id="status">connecting</span>
+    <button class="cfg-btn" id="cfg-btn">config</button>
   </div>
 </header>
+
+<div class="cfg-panel" id="cfg-panel">
+  <div class="cfg-box">
+    <h3>Server Config</h3>
+    <div id="cfg-rows"></div>
+  </div>
+</div>
 
 <div class="toolbar">
   <input id="filter" type="text" placeholder="filter by metric or label..." />
   <span class="tmeta" id="meta"></span>
+</div>
+
+<!-- Detail panel -->
+<div class="detail" id="detail">
+  <div class="detail-header">
+    <span class="detail-title" id="detail-title"></span>
+    <button class="detail-close" id="detail-close">✕</button>
+  </div>
+  <div class="detail-meta" id="detail-meta"></div>
+  <div class="detail-body" id="detail-body">
+    <div class="detail-loading">Loading…</div>
+  </div>
 </div>
 
 <div class="table-wrap">
@@ -203,7 +312,7 @@
 
       document.getElementById('version').textContent = `solenix-core ${health.version}`;
       document.getElementById('dot').classList.remove('dead');
-      document.getElementById('status').textContent = 'ok';
+      document.getElementById('status').textContent = 'online';
 
       allRows = latest.rows || [];
       render();
@@ -228,14 +337,20 @@
     const tbody = document.getElementById('tbody');
 
     if (rows.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="4" class="empty">${q ? 'No matches' : 'No metrics yet'}</td></tr>`;
+      tbody.innerHTML = q
+        ? `<tr><td colspan="4"><div class="empty"><span class="empty-title">No matches</span><span>Try a different filter</span></div></td></tr>`
+        : `<tr><td colspan="4"><div class="empty">
+            <span class="empty-title">No metrics yet</span>
+            <span>Push your first data point to get started</span>
+            <span class="empty-hint">solenix push my.metric 42.0</span>
+          </div></td></tr>`;
       return;
     }
 
     tbody.innerHTML = rows.map(r => {
       const tags = Object.entries(r.labels || {});
       const ts   = new Date(r.timestamp / 1e6);
-      return `<tr>
+      return `<tr data-metric="${esc(r.metric)}" data-labels="${esc(JSON.stringify(r.labels || {}))}">
         <td><span class="metric-name">${esc(r.metric)}</span></td>
         <td>${tags.map(([k, v]) => `<span class="tag">${esc(k)}=<b>${esc(v)}</b></span>`).join(' ')}</td>
         <td><span class="val">${r.value.toFixed(6)}</span></td>
@@ -255,6 +370,49 @@
 
   load();
   setInterval(load, REFRESH_MS);
+
+  // Config panel
+  const cfgPanel = document.getElementById('cfg-panel');
+  const cfgBtn   = document.getElementById('cfg-btn');
+  const cfgRows  = document.getElementById('cfg-rows');
+  let cfgLoaded  = false;
+
+  cfgBtn.addEventListener('click', async () => {
+    const open = cfgPanel.classList.toggle('open');
+    if (open && !cfgLoaded) {
+      try {
+        const cfg = await fetch('/api/config').then(r => r.json());
+        const labels = {
+          mode:                 'Mode',
+          grpc_addr:            'gRPC addr',
+          http_addr:            'HTTP addr',
+          data_dir:             'Data dir',
+          wal_max_size:         'WAL max size',
+          flush_interval:       'Flush interval',
+          compaction_threshold: 'Compaction threshold',
+          retention:            'Retention',
+          collector_enabled:    'Collector',
+          collector_interval:   'Collector interval',
+          auth_enabled:         'Auth',
+        };
+        cfgRows.innerHTML = Object.entries(labels).map(([k, label]) => {
+          let val = cfg[k];
+          if (k === 'wal_max_size') val = (val / 1024 / 1024).toFixed(0) + ' MiB';
+          if (typeof val === 'boolean') val = val ? 'enabled' : 'disabled';
+          return `<div class="cfg-row"><span class="cfg-key">${label}</span><span class="cfg-val">${esc(String(val))}</span></div>`;
+        }).join('');
+        cfgLoaded = true;
+      } catch {
+        cfgRows.innerHTML = '<div class="cfg-row"><span class="cfg-key">error loading config</span></div>';
+      }
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!cfgPanel.contains(e.target) && e.target !== cfgBtn) {
+      cfgPanel.classList.remove('open');
+    }
+  });
 </script>
 
 <script>
@@ -298,6 +456,87 @@
       setTimeout(() => { target = 1.0; done = true; }, 500); // tap 4 up → settle → fade
     }, 150);
   }, 80);
+})();
+</script>
+
+<script>
+// Detail panel
+(function() {
+  const detail      = document.getElementById('detail');
+  const detailTitle = document.getElementById('detail-title');
+  const detailMeta  = document.getElementById('detail-meta');
+  const detailBody  = document.getElementById('detail-body');
+  const detailClose = document.getElementById('detail-close');
+
+  function openDetail(metric, labels) {
+    detailTitle.textContent = metric;
+
+    const tags = Object.entries(labels);
+    detailMeta.innerHTML = tags.length
+      ? tags.map(([k, v]) => `<span class="tag">${esc(k)}=<b>${esc(v)}</b></span>`).join('')
+      : '<span style="color:var(--muted)">no labels</span>';
+
+    detailBody.innerHTML = '<div class="detail-loading">Loading…</div>';
+    detail.classList.add('open');
+
+    fetch(`/api/query?metric=${encodeURIComponent(metric)}`)
+      .then(r => r.json())
+      .then(data => {
+        const series = data.series || [];
+        // collect all points across series matching these labels, newest first
+        let points = [];
+        for (const s of series) {
+          // match labels if any
+          const match = tags.every(([k, v]) => s.labels && s.labels[k] === v);
+          if (tags.length === 0 || match) {
+            for (const p of (s.points || [])) {
+              points.push(p);
+            }
+          }
+        }
+        points.sort((a, b) => b.timestamp - a.timestamp);
+
+        if (points.length === 0) {
+          detailBody.innerHTML = '<div class="detail-loading">No data</div>';
+          return;
+        }
+
+        detailBody.innerHTML = `<table class="detail-table">
+          <thead><tr><th>#</th><th>Time</th><th>Value</th></tr></thead>
+          <tbody>${points.map((p, i) => {
+            const ts = new Date(p.timestamp / 1e6);
+            return `<tr>
+              <td style="color:var(--muted)">${i + 1}</td>
+              <td>${ts.toLocaleDateString()} ${ts.toLocaleTimeString()}</td>
+              <td style="color:var(--accent)">${p.value.toFixed(6)}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>`;
+      })
+      .catch(() => {
+        detailBody.innerHTML = '<div class="detail-loading">Failed to load</div>';
+      });
+  }
+
+  function closeDetail() {
+    detail.classList.remove('open');
+  }
+
+  detailClose.addEventListener('click', closeDetail);
+
+  document.getElementById('tbody').addEventListener('click', e => {
+    const tr = e.target.closest('tr[data-metric]');
+    if (!tr) return;
+    const metric = tr.dataset.metric;
+    let labels = {};
+    try { labels = JSON.parse(tr.dataset.labels); } catch {}
+    openDetail(metric, labels);
+  });
+
+  // close on Escape
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeDetail();
+  });
 })();
 </script>
 

@@ -18,11 +18,12 @@ var staticFiles embed.FS
 // HTTPServer отдаёт embedded UI и REST API для self-hosted режима.
 type HTTPServer struct {
 	db      *solenix.DB
+	cfg     solenix.Config
 	version string
 }
 
-func NewHTTP(db *solenix.DB) *HTTPServer {
-	return &HTTPServer{db: db, version: solenix.Version}
+func NewHTTP(db *solenix.DB, cfg solenix.Config) *HTTPServer {
+	return &HTTPServer{db: db, cfg: cfg, version: solenix.Version}
 }
 
 // ListenHTTP запускает HTTP сервер на заданном адресе (например, ":8080").
@@ -41,6 +42,7 @@ func (h *HTTPServer) ListenHTTP(addr string) error {
 	mux.HandleFunc("/api/query", h.handleQuery)
 	mux.HandleFunc("/api/latest", h.handleLatest)
 	mux.HandleFunc("/api/health", h.handleHealth)
+	mux.HandleFunc("/api/config", h.handleConfig)
 
 	return http.ListenAndServe(addr, mux)
 }
@@ -109,6 +111,22 @@ func (h *HTTPServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{
 		"status":  "ok",
 		"version": h.version,
+	})
+}
+
+func (h *HTTPServer) handleConfig(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, map[string]any{
+		"data_dir":             h.cfg.DataDir,
+		"wal_max_size":         h.cfg.WALMaxSize,
+		"flush_interval":       h.cfg.FlushInterval.String(),
+		"compaction_threshold": h.cfg.CompactionThreshold,
+		"retention":            h.cfg.RetentionDuration.String(),
+		"mode":                 h.cfg.Mode,
+		"grpc_addr":            h.cfg.GRPCAddr,
+		"http_addr":            h.cfg.HTTPAddr,
+		"collector_enabled":    h.cfg.Collector.Enabled,
+		"collector_interval":   h.cfg.Collector.Interval.String(),
+		"auth_enabled":         h.cfg.Auth.Enabled,
 	})
 }
 

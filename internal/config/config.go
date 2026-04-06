@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/bbvtaev/solenix-core/internal/model"
@@ -66,7 +67,7 @@ func LoadConfig(path string) (Config, error) {
 	cfg := DefaultConfig()
 
 	if raw.DataDir != "" {
-		cfg.DataDir = raw.DataDir
+		cfg.DataDir = expandHome(raw.DataDir)
 	}
 	if raw.WALMaxSize > 0 {
 		cfg.WALMaxSize = raw.WALMaxSize
@@ -133,4 +134,22 @@ func defaultDataDir() string {
 		return "./data"
 	}
 	return filepath.Join(home, "solenix", "data")
+}
+
+func expandHome(path string) string {
+	if path == "~" || path == "~/" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return path
+		}
+		return home
+	}
+	if strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return path
+		}
+		return filepath.Join(home, path[2:])
+	}
+	return path
 }

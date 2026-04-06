@@ -64,7 +64,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 	}()
 
 	if cfg.Mode == solenix.ModeSelfHosted && cfg.HTTPAddr != "" {
-		httpSrv := server.NewHTTP(db)
+		httpSrv := server.NewHTTP(db, cfg)
 		go func() {
 			slog.Info("UI available", "url", "http://localhost"+cfg.HTTPAddr)
 			if err := httpSrv.ListenHTTP(cfg.HTTPAddr); err != nil {

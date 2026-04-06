@@ -15,6 +15,15 @@ func newMetricIndex() *metricIndex {
 	}
 }
 
+// addMetric регистрирует метрику без конкретного seriesID (например, из chunk-директорий).
+func (mi *metricIndex) addMetric(metric string) {
+	mi.mu.Lock()
+	defer mi.mu.Unlock()
+	if _, ok := mi.idx[metric]; !ok {
+		mi.idx[metric] = make(map[seriesID]struct{})
+	}
+}
+
 func (mi *metricIndex) add(metric string, id seriesID) {
 	mi.mu.Lock()
 	defer mi.mu.Unlock()

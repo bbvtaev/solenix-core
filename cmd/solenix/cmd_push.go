@@ -9,11 +9,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var writeCmd = &cobra.Command{
-	Use:   "write <metric> <value>",
-	Short: "Write a single data point",
-	Example: `  solenix write cpu.usage 72.5
-  solenix write cpu.usage 72.5 --labels host=srv1,env=prod`,
+var pushCmd = &cobra.Command{
+	Use:   "push <metric> <value>",
+	Short: "Push a single data point",
+	Example: `  solenix push cpu.usage 72.5
+  solenix push cpu.usage 72.5 --labels host=srv1,env=prod`,
 	Args: cobra.ExactArgs(2),
 	RunE: runWrite,
 }
@@ -21,7 +21,7 @@ var writeCmd = &cobra.Command{
 var writeLabels []string
 
 func init() {
-	writeCmd.Flags().StringArrayVar(&writeLabels, "labels", nil, "labels in key=value format (repeatable or comma-separated)")
+	pushCmd.Flags().StringArrayVar(&writeLabels, "labels", nil, "labels in key=value format (repeatable or comma-separated)")
 }
 
 func runWrite(_ *cobra.Command, args []string) error {

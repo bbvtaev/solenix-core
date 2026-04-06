@@ -111,6 +111,15 @@ func Open(config cfg.Config) (*DB, error) {
 		db.flushedUpTo.Store(ft)
 	}
 
+	// Заполняем metricIdx из chunk-директорий (метрики которые уже на диске)
+	if entries, err := os.ReadDir(chunksDir); err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				db.metricIdx.addMetric(e.Name())
+			}
+		}
+	}
+
 	// 1. Replay всех WAL сегментов (горячий буфер)
 	walPaths, err := wal.ListSegmentPaths(walDir)
 	if err != nil {
@@ -254,23 +263,16 @@ func (db *DB) evictFlushedPoints(upTo int64) {
 	for i := range db.shards {
 		sh := &db.shards[i]
 		sh.mu.Lock()
-		var toRemove []struct {
-			id     seriesID
-			metric string
-		}
 		for id, ser := range sh.series {
 			keepFrom := sort.Search(len(ser.points), func(j int) bool {
 				return ser.points[j].Timestamp > upTo
 			})
 			if keepFrom == 0 {
-				continue // нечего выгружать
+				continue
 			}
 			if keepFrom == len(ser.points) {
 				delete(sh.series, id)
-				toRemove = append(toRemove, struct {
-					id     seriesID
-					metric string
-				}{id, ser.metric})
+				// не удаляем из metricIdx — данные живы в chunk-файлах
 			} else {
 				fresh := make([]model.Point, len(ser.points)-keepFrom)
 				copy(fresh, ser.points[keepFrom:])
@@ -278,9 +280,6 @@ func (db *DB) evictFlushedPoints(upTo int64) {
 			}
 		}
 		sh.mu.Unlock()
-		for _, r := range toRemove {
-			db.metricIdx.remove(r.metric, r.id)
-		}
 	}
 }
 
