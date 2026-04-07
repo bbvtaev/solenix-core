@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"time"
 
-	pb "github.com/bbvtaev/solenix-core/api/proto"
+	pb "github.com/bbvtaev/solenix/api/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"

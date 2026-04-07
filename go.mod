@@ -1,6 +1,6 @@
-module github.com/bbvtaev/solenix-core
+module github.com/bbvtaev/solenix
 
-go 1.25.3
+go 1.25.0
 
 require (
 	github.com/shirou/gopsutil/v3 v3.24.5

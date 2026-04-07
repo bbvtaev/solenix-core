@@ -6,7 +6,7 @@ import (
 	"math"
 	"math/bits"
 
-	"github.com/bbvtaev/solenix-core/internal/model"
+	"github.com/bbvtaev/solenix/internal/model"
 )
 
 // bitWriter упаковывает биты MSB-first в байтовый срез.

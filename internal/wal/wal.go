@@ -11,7 +11,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/bbvtaev/solenix-core/internal/model"
+	"github.com/bbvtaev/solenix/internal/model"
 )
 
 // Формат WAL-записи на диске:

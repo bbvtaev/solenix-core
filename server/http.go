@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	solenix "github.com/bbvtaev/solenix-core"
+	solenix "github.com/bbvtaev/solenix"
 )
 
 //go:embed static

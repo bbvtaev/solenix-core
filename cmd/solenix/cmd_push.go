@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	sdk "github.com/bbvtaev/solenix-core/sdk/go"
+	sdk "github.com/bbvtaev/solenix/sdk/go"
 	"github.com/spf13/cobra"
 )
 

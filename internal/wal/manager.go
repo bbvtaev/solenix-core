@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/bbvtaev/solenix-core/internal/model"
+	"github.com/bbvtaev/solenix/internal/model"
 )
 
 // Manager управляет нумерованными WAL сегментами.

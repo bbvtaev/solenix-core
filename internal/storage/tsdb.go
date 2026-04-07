@@ -11,10 +11,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/bbvtaev/solenix-core/internal/chunk"
-	cfg "github.com/bbvtaev/solenix-core/internal/config"
-	"github.com/bbvtaev/solenix-core/internal/model"
-	"github.com/bbvtaev/solenix-core/internal/wal"
+	"github.com/bbvtaev/solenix/internal/chunk"
+	cfg "github.com/bbvtaev/solenix/internal/config"
+	"github.com/bbvtaev/solenix/internal/model"
+	"github.com/bbvtaev/solenix/internal/wal"
 )
 
 const walSyncInterval = 100 * time.Millisecond

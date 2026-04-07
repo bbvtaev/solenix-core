@@ -872,7 +872,7 @@ const file_api_proto_solenix_proto_rawDesc = "" +
 	"\bQueryAgg\x12\x18.solenix.QueryAggRequest\x1a\x19.solenix.QueryAggResponse\x12<\n" +
 	"\tSubscribe\x12\x19.solenix.SubscribeRequest\x1a\x12.solenix.DataPoint0\x01\x129\n" +
 	"\x06Health\x12\x16.solenix.HealthRequest\x1a\x17.solenix.HealthResponse\x12<\n" +
-	"\aMetrics\x12\x17.solenix.MetricsRequest\x1a\x18.solenix.MetricsResponseB5Z3github.com/bbvtaev/solenix-core/api/proto;solenixpbb\x06proto3"
+	"\aMetrics\x12\x17.solenix.MetricsRequest\x1a\x18.solenix.MetricsResponseB0Z.github.com/bbvtaev/solenix/api/proto;solenixpbb\x06proto3"
 
 var (
 	file_api_proto_solenix_proto_rawDescOnce sync.Once
