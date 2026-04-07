@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/bbvtaev/solenix/internal/chunk"
@@ -49,6 +50,7 @@ type DB struct {
 	cw        *chunk.Writer
 	config    cfg.Config
 	chunksDir string
+	lockFile  *os.File // holds an exclusive flock for the lifetime of DB
 
 	closeCh     chan struct{}
 	walDone     chan struct{}
@@ -69,21 +71,31 @@ func Open(config cfg.Config) (*DB, error) {
 	if config.DataDir == "" {
 		config.DataDir = def.DataDir
 	}
+	if config.Database == "" {
+		config.Database = def.Database
+	}
 	if config.WALMaxSize == 0 {
 		config.WALMaxSize = def.WALMaxSize
 	}
 	if config.FlushInterval == 0 {
 		config.FlushInterval = def.FlushInterval
 	}
-	if config.Mode == "" {
-		config.Mode = def.Mode
-	}
 	if config.GRPCAddr == "" {
 		config.GRPCAddr = def.GRPCAddr
 	}
 
-	walDir := filepath.Join(config.DataDir, "wal")
-	chunksDir := filepath.Join(config.DataDir, "chunks")
+	// Ensure data root exists and verify the on-disk format version.
+	if err := os.MkdirAll(config.DataDir, 0o755); err != nil {
+		return nil, err
+	}
+	if err := checkOrWriteVersion(config.DataDir); err != nil {
+		return nil, err
+	}
+
+	// Each database lives in its own subdirectory of DataDir.
+	dbDir := filepath.Join(config.DataDir, config.Database)
+	walDir := filepath.Join(dbDir, "wal")
+	chunksDir := filepath.Join(dbDir, "chunks")
 
 	if err := os.MkdirAll(walDir, 0o755); err != nil {
 		return nil, err
@@ -92,10 +104,17 @@ func Open(config cfg.Config) (*DB, error) {
 		return nil, err
 	}
 
+	// Acquire an exclusive lock to prevent two processes from opening the same database.
+	lockFile, err := acquireLock(dbDir)
+	if err != nil {
+		return nil, err
+	}
+
 	db := &DB{
 		metricIdx: newMetricIndex(),
 		config:    config,
 		chunksDir: chunksDir,
+		lockFile:  lockFile,
 		closeCh:   make(chan struct{}),
 		walDone:   make(chan struct{}),
 		subs:      make(map[uint64]*subscription),
@@ -317,7 +336,12 @@ func maxChunkTS(chunksDir string) int64 {
 func (db *DB) Close() error {
 	close(db.closeCh)
 	<-db.walDone
-	return db.wm.Close()
+	err := db.wm.Close()
+	if db.lockFile != nil {
+		_ = syscall.Flock(int(db.lockFile.Fd()), syscall.LOCK_UN)
+		_ = db.lockFile.Close()
+	}
+	return err
 }
 
 // Push записывает одно или несколько значений для метрики с текущим timestamp.
@@ -583,6 +607,44 @@ func insertPointSorted(points *[]model.Point, p model.Point) {
 	copy(ps[i+1:], ps[i:])
 	ps[i] = p
 	*points = ps
+}
+
+// checkOrWriteVersion checks the VERSION file in the data root directory.
+// If absent, it creates it. If the version doesn't match, returns an error.
+func checkOrWriteVersion(dataDir string) error {
+	vPath := filepath.Join(dataDir, "VERSION")
+	data, err := os.ReadFile(vPath)
+	if os.IsNotExist(err) {
+		return os.WriteFile(vPath, []byte(model.DataFormatVersion+"\n"), 0o644)
+	}
+	if err != nil {
+		return fmt.Errorf("read VERSION: %w", err)
+	}
+	v := strings.TrimSpace(string(data))
+	if v != model.DataFormatVersion {
+		return fmt.Errorf("data format version mismatch: found %q, want %q — migration required", v, model.DataFormatVersion)
+	}
+	return nil
+}
+
+// acquireLock acquires an exclusive flock on the .lock file in the database directory.
+// Returns an error if the directory is already opened by another process.
+func acquireLock(dbDir string) (*os.File, error) {
+	lockPath := filepath.Join(dbDir, ".lock")
+	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("open lock file: %w", err)
+	}
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		_ = f.Close()
+		if err == syscall.EWOULDBLOCK {
+			return nil, fmt.Errorf("database %q is already open by another process", dbDir)
+		}
+		return nil, fmt.Errorf("acquire lock: %w", err)
+	}
+	_ = f.Truncate(0)
+	_, _ = fmt.Fprintf(f, "%d\n", os.Getpid())
+	return f, nil
 }
 
 func cloneLabels(src map[string]string) map[string]string {

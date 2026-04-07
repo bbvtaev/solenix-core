@@ -129,17 +129,15 @@ func (h *HTTPServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 func (h *HTTPServer) handleConfig(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, map[string]any{
-		"data_dir":             h.cfg.DataDir,
+		"data_dir":             h.cfg.DataDir + "/" + h.cfg.Database,
 		"wal_max_size":         h.cfg.WALMaxSize,
 		"flush_interval":       h.cfg.FlushInterval.String(),
 		"compaction_threshold": h.cfg.CompactionThreshold,
 		"retention":            h.cfg.RetentionDuration.String(),
-		"mode":                 h.cfg.Mode,
 		"grpc_addr":            h.cfg.GRPCAddr,
 		"http_addr":            h.cfg.HTTPAddr,
 		"collector_enabled":    h.cfg.Collector.Enabled,
 		"collector_interval":   h.cfg.Collector.Interval.String(),
-		"auth_enabled":         h.cfg.Auth.Enabled,
 	})
 }
 

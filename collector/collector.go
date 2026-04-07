@@ -1,5 +1,4 @@
-// Package collector собирает системные метрики хоста и пишет их в solenix DB.
-// Аналог prometheus/node_exporter, встроенный в ядро.
+// Package collector collects system metrics from the host and writes them to the solenix DB.
 //
 // Метрики:
 //
@@ -33,7 +32,7 @@ import (
 
 const job = "solenix-core"
 
-// Collector периодически собирает системные метрики и пишет в DB.
+// Collector periodicly collects system metrics and writes them to the DB.
 type Collector struct {
 	db       *solenix.DB
 	interval time.Duration
@@ -83,8 +82,6 @@ func (c *Collector) collect() {
 	c.collectGoRuntime(now, labels)
 }
 
-// ── CPU ───────────────────────────────────────────────────────────────────────
-
 func (c *Collector) collectCPU(now int64, base map[string]string) {
 	// percpu=true — одно значение на ядро
 	percents, err := cpu.Percent(0, true)
@@ -103,8 +100,6 @@ func (c *Collector) collectCPU(now int64, base map[string]string) {
 		c.write("solenix_cpu_usage_percent", merge(base, map[string]string{"cpu": "total"}), now, round(total[0]))
 	}
 }
-
-// ── Memory ────────────────────────────────────────────────────────────────────
 
 func (c *Collector) collectMem(now int64, base map[string]string) {
 	v, err := mem.VirtualMemory()

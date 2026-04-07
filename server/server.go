@@ -108,7 +108,6 @@ func (s *Server) Query(_ context.Context, req *pb.QueryRequest) (*pb.QueryRespon
 	return &pb.QueryResponse{Series: pbSeries}, nil
 }
 
-
 // Subscribe — server-side streaming: шлёт DataPoint в реальном времени.
 func (s *Server) Subscribe(req *pb.SubscribeRequest, stream pb.SolenixDB_SubscribeServer) error {
 	id, ch := s.db.Subscribe(req.Metric, req.Labels)

@@ -9,8 +9,6 @@ import (
 	"github.com/bbvtaev/solenix/internal/storage"
 )
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
 type (
 	DB              = storage.DB
 	Point           = model.Point
@@ -19,13 +17,9 @@ type (
 	AggType         = model.AggType
 	AggPoint        = model.AggPoint
 	AggResult       = model.AggResult
-	ServerMode      = model.ServerMode
-	AuthConfig      = model.AuthConfig
 	Config          = config.Config
 	CollectorConfig = model.CollectorConfig
 )
-
-// ── Constants ─────────────────────────────────────────────────────────────────
 
 const (
 	Version = model.Version
@@ -35,12 +29,7 @@ const (
 	AggMax   AggType = model.AggMax
 	AggSum   AggType = model.AggSum
 	AggCount AggType = model.AggCount
-
-	ModeSelfHosted ServerMode = model.ModeSelfHosted
-	ModeCloud      ServerMode = model.ModeCloud
 )
-
-// ── Functions ─────────────────────────────────────────────────────────────────
 
 // ParseAggType парсит строку в AggType ("avg", "min", "max", "sum", "count").
 func ParseAggType(s string) (AggType, error) { return model.ParseAggType(s) }

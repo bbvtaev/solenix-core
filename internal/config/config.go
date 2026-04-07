@@ -4,55 +4,48 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/bbvtaev/solenix/internal/model"
 	"gopkg.in/yaml.v3"
 )
 
-// Config задаёт параметры запуска БД и серверов.
+// Config holds runtime parameters for the database and servers.
+// DataDir is fixed at ~/.solenix/data and is not user-configurable via YAML;
+// it can be overridden programmatically (e.g. in tests).
 type Config struct {
 	// Storage
-	DataDir             string        `yaml:"data_dir"`
-	WALMaxSize          int64         `yaml:"wal_max_size"`    // байт; default 32 MiB
+	DataDir             string        // fixed: ~/.solenix/data; overridable in tests
+	Database            string        `yaml:"database"`           // database name; default "default"
+	WALMaxSize          int64         `yaml:"wal_max_size"`       // bytes; default 32 MiB
 	RetentionDuration   time.Duration `yaml:"retention"`
-	FlushInterval       time.Duration `yaml:"flush_interval"`  // интервал flush в chunks; default 2m
-	CompactionThreshold int           `yaml:"compaction_threshold"` // файлов на метрику до компакции; default 10
+	FlushInterval       time.Duration `yaml:"flush_interval"`     // chunk flush interval; default 2m
+	CompactionThreshold int           `yaml:"compaction_threshold"` // chunk files per metric before compaction; default 10
 
 	// Server
-	Mode     model.ServerMode `yaml:"mode"`
-	GRPCAddr string           `yaml:"grpc_addr"`
-	HTTPAddr string           `yaml:"http_addr"`
-
-	// Auth
-	Auth model.AuthConfig `yaml:"auth"`
+	GRPCAddr string `yaml:"grpc_addr"`
+	HTTPAddr string `yaml:"http_addr"`
 
 	// Collector
 	Collector model.CollectorConfig `yaml:"collector"`
 }
 
-// rawConfig — промежуточная структура для парсинга YAML.
-// Длительности хранятся как строки и конвертируются в time.Duration.
+// rawConfig is an intermediate struct for YAML parsing.
+// Durations are stored as strings and converted to time.Duration.
 type rawConfig struct {
-	DataDir       string           `yaml:"data_dir"`
-	WALMaxSize    int64            `yaml:"wal_max_size"`
-	Retention     string           `yaml:"retention"`
-	FlushInterval string           `yaml:"flush_interval"`
-	Mode          model.ServerMode `yaml:"mode"`
-	GRPCAddr      string           `yaml:"grpc_addr"`
-	HTTPAddr      string           `yaml:"http_addr"`
-	Auth          struct {
-		Enabled bool     `yaml:"enabled"`
-		APIKeys []string `yaml:"api_keys"`
-	} `yaml:"auth"`
-	Collector struct {
+	Database      string `yaml:"database"`
+	WALMaxSize    int64  `yaml:"wal_max_size"`
+	Retention     string `yaml:"retention"`
+	FlushInterval string `yaml:"flush_interval"`
+	GRPCAddr      string `yaml:"grpc_addr"`
+	HTTPAddr      string `yaml:"http_addr"`
+	Collector     struct {
 		Enabled  bool   `yaml:"enabled"`
 		Interval string `yaml:"interval"`
 	} `yaml:"collector"`
 }
 
-// LoadConfig читает YAML файл и возвращает Config.
+// LoadConfig reads a YAML file and returns a Config.
 func LoadConfig(path string) (Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -66,14 +59,11 @@ func LoadConfig(path string) (Config, error) {
 
 	cfg := DefaultConfig()
 
-	if raw.DataDir != "" {
-		cfg.DataDir = expandHome(raw.DataDir)
+	if raw.Database != "" {
+		cfg.Database = raw.Database
 	}
 	if raw.WALMaxSize > 0 {
-		cfg.WALMaxSize = raw.WALMaxSize
-	}
-	if raw.Mode != "" {
-		cfg.Mode = raw.Mode
+		cfg.WALMaxSize = raw.WALMaxSize << 20 // MiB → bytes
 	}
 	if raw.GRPCAddr != "" {
 		cfg.GRPCAddr = raw.GRPCAddr
@@ -95,10 +85,6 @@ func LoadConfig(path string) (Config, error) {
 		}
 		cfg.FlushInterval = d
 	}
-	cfg.Auth = model.AuthConfig{
-		Enabled: raw.Auth.Enabled,
-		APIKeys: raw.Auth.APIKeys,
-	}
 	cfg.Collector.Enabled = raw.Collector.Enabled
 	if raw.Collector.Interval != "" {
 		d, err := time.ParseDuration(raw.Collector.Interval)
@@ -111,12 +97,12 @@ func LoadConfig(path string) (Config, error) {
 	return cfg, nil
 }
 
-// DefaultConfig возвращает конфиг со значениями по умолчанию.
+// DefaultConfig returns a Config with default values.
 func DefaultConfig() Config {
 	return Config{
 		DataDir:             defaultDataDir(),
+		Database:            "default",
 		WALMaxSize:          32 << 20, // 32 MiB
-		Mode:                model.ModeSelfHosted,
 		GRPCAddr:            ":8731",
 		HTTPAddr:            ":8080",
 		FlushInterval:       2 * time.Minute,
@@ -131,25 +117,7 @@ func DefaultConfig() Config {
 func defaultDataDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "./data"
+		return filepath.Join(".", ".solenix", "data")
 	}
-	return filepath.Join(home, "solenix", "data")
-}
-
-func expandHome(path string) string {
-	if path == "~" || path == "~/" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return path
-		}
-		return home
-	}
-	if strings.HasPrefix(path, "~/") {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return path
-		}
-		return filepath.Join(home, path[2:])
-	}
-	return path
+	return filepath.Join(home, ".solenix", "data")
 }

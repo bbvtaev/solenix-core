@@ -47,11 +47,9 @@ func runServe(_ *cobra.Command, _ []string) error {
 	defer db.Close()
 
 	slog.Info("solenix-core started",
-		"mode", cfg.Mode,
-		"data_dir", cfg.DataDir,
+		"data_dir", cfg.DataDir+"/"+cfg.Database,
 		"grpc_addr", cfg.GRPCAddr,
 		"retention", cfg.RetentionDuration,
-		"auth", cfg.Auth.Enabled,
 	)
 
 	srv := server.New(db)
@@ -63,7 +61,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 		}
 	}()
 
-	if cfg.Mode == solenix.ModeSelfHosted && cfg.HTTPAddr != "" {
+	if cfg.HTTPAddr != "" {
 		httpSrv := server.NewHTTP(db, cfg)
 		go func() {
 			slog.Info("UI available", "url", "http://localhost"+cfg.HTTPAddr)
