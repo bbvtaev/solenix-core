@@ -4,7 +4,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/bbvtaev/solenix-core/internal/model"
+	"github.com/bbvtaev/solenix/internal/model"
 )
 
 func TestRoundtrip_Regular(t *testing.T) {

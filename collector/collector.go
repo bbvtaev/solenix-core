@@ -28,7 +28,7 @@ import (
 	"github.com/shirou/gopsutil/v3/mem"
 	psnet "github.com/shirou/gopsutil/v3/net"
 
-	solenix "github.com/bbvtaev/solenix-core"
+	solenix "github.com/bbvtaev/solenix"
 )
 
 const job = "solenix-core"

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bbvtaev/solenix-core/internal/model"
+	"github.com/bbvtaev/solenix/internal/model"
 	"gopkg.in/yaml.v3"
 )
 

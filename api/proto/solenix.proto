@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package solenix;
 
-option go_package = "github.com/bbvtaev/solenix-core/api/proto;solenixpb";
+option go_package = "github.com/bbvtaev/solenix/api/proto;solenixpb";
 
 service SolenixDB {
   rpc Push(PushRequest)           returns (PushResponse);

@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bbvtaev/solenix-core/internal/model"
+	"github.com/bbvtaev/solenix/internal/model"
 )
 
 // ChunkTimeRange reads only the 24-byte header of a chunk file and returns its time range.

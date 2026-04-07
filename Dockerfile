@@ -1,4 +1,4 @@
-FROM golang:1.24 AS builder
+FROM golang:1.25 AS builder
 
 WORKDIR /app
 
@@ -7,14 +7,14 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o bin/service ./
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/solenix ./cmd/solenix
 
-FROM ubuntu:22.04
+FROM scratch
 
-WORKDIR /
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /app/bin/solenix /usr/local/bin/solenix
 
-RUN apt update && apt install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+EXPOSE 8731 8080
 
-COPY --from=builder /app/bin/service /usr/local/bin/service
-
-CMD ["/usr/local/bin/service"]
+ENTRYPOINT ["/usr/local/bin/solenix"]
+CMD ["serve"]
