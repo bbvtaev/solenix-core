@@ -21,7 +21,6 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	SolenixDB_Push_FullMethodName      = "/solenix.SolenixDB/Push"
 	SolenixDB_Query_FullMethodName     = "/solenix.SolenixDB/Query"
-	SolenixDB_QueryAgg_FullMethodName  = "/solenix.SolenixDB/QueryAgg"
 	SolenixDB_Subscribe_FullMethodName = "/solenix.SolenixDB/Subscribe"
 	SolenixDB_Health_FullMethodName    = "/solenix.SolenixDB/Health"
 	SolenixDB_Metrics_FullMethodName   = "/solenix.SolenixDB/Metrics"
@@ -33,7 +32,6 @@ const (
 type SolenixDBClient interface {
 	Push(ctx context.Context, in *PushRequest, opts ...grpc.CallOption) (*PushResponse, error)
 	Query(ctx context.Context, in *QueryRequest, opts ...grpc.CallOption) (*QueryResponse, error)
-	QueryAgg(ctx context.Context, in *QueryAggRequest, opts ...grpc.CallOption) (*QueryAggResponse, error)
 	Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DataPoint], error)
 	Health(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error)
 	Metrics(ctx context.Context, in *MetricsRequest, opts ...grpc.CallOption) (*MetricsResponse, error)
@@ -61,16 +59,6 @@ func (c *solenixDBClient) Query(ctx context.Context, in *QueryRequest, opts ...g
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(QueryResponse)
 	err := c.cc.Invoke(ctx, SolenixDB_Query_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *solenixDBClient) QueryAgg(ctx context.Context, in *QueryAggRequest, opts ...grpc.CallOption) (*QueryAggResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(QueryAggResponse)
-	err := c.cc.Invoke(ctx, SolenixDB_QueryAgg_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +110,6 @@ func (c *solenixDBClient) Metrics(ctx context.Context, in *MetricsRequest, opts 
 type SolenixDBServer interface {
 	Push(context.Context, *PushRequest) (*PushResponse, error)
 	Query(context.Context, *QueryRequest) (*QueryResponse, error)
-	QueryAgg(context.Context, *QueryAggRequest) (*QueryAggResponse, error)
 	Subscribe(*SubscribeRequest, grpc.ServerStreamingServer[DataPoint]) error
 	Health(context.Context, *HealthRequest) (*HealthResponse, error)
 	Metrics(context.Context, *MetricsRequest) (*MetricsResponse, error)
@@ -141,9 +128,6 @@ func (UnimplementedSolenixDBServer) Push(context.Context, *PushRequest) (*PushRe
 }
 func (UnimplementedSolenixDBServer) Query(context.Context, *QueryRequest) (*QueryResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Query not implemented")
-}
-func (UnimplementedSolenixDBServer) QueryAgg(context.Context, *QueryAggRequest) (*QueryAggResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method QueryAgg not implemented")
 }
 func (UnimplementedSolenixDBServer) Subscribe(*SubscribeRequest, grpc.ServerStreamingServer[DataPoint]) error {
 	return status.Error(codes.Unimplemented, "method Subscribe not implemented")
@@ -211,24 +195,6 @@ func _SolenixDB_Query_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SolenixDB_QueryAgg_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(QueryAggRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(SolenixDBServer).QueryAgg(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: SolenixDB_QueryAgg_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SolenixDBServer).QueryAgg(ctx, req.(*QueryAggRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _SolenixDB_Subscribe_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(SubscribeRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -290,10 +256,6 @@ var SolenixDB_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Query",
 			Handler:    _SolenixDB_Query_Handler,
-		},
-		{
-			MethodName: "QueryAgg",
-			Handler:    _SolenixDB_QueryAgg_Handler,
 		},
 		{
 			MethodName: "Health",

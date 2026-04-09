@@ -68,7 +68,7 @@ func runQuery(_ *cobra.Command, args []string) error {
 	}
 	defer client.Close()
 
-	results, err := client.Query(metric, labels, from, to)
+	results, err := client.Query(metric, labels, from, to, nil)
 	if err != nil {
 		return err
 	}

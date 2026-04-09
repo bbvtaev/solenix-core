@@ -8,7 +8,7 @@
 //
 //	client.Push("cpu.usage", solenix.Labels{"host": "srv1"}, 72.5)
 //
-//	results, _ := client.Query("cpu.usage", nil, 0, 0)
+//	results, _ := client.Query("cpu.usage", nil, 0, 0, nil)
 //	for _, s := range results {
 //	    fmt.Println(s.Metric, s.Points)
 //	}
@@ -103,61 +103,31 @@ func (c *Client) PushBatch(metric string, labels Labels, points []Point) error {
 	return err
 }
 
-// AggPoint — одна агрегированная точка.
-type AggPoint struct {
-	Timestamp int64
-	Value     float64
-}
-
-// AggResult — результат QueryAgg для одной серии.
-type AggResult struct {
-	Metric string
-	Labels Labels
-	Window string
-	Points []AggPoint
-}
-
-// QueryAgg запрашивает агрегированные данные по временным окнам.
-// window — строка duration: "1m", "5m", "1h".
-// agg — тип агрегации: "avg", "min", "max", "sum", "count".
-func (c *Client) QueryAgg(metric string, labels Labels, from, to int64, window, agg string) ([]AggResult, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
-	defer cancel()
-
-	resp, err := c.rpc.QueryAgg(ctx, &pb.QueryAggRequest{
-		Metric: metric,
-		Labels: labels,
-		From:   from,
-		To:     to,
-		Window: window,
-		Agg:    agg,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	results := make([]AggResult, len(resp.Series))
-	for i, s := range resp.Series {
-		pts := make([]AggPoint, len(s.Points))
-		for j, p := range s.Points {
-			pts[j] = AggPoint{Timestamp: p.Timestamp, Value: p.Value}
-		}
-		results[i] = AggResult{Metric: s.Metric, Labels: s.Labels, Window: s.Window, Points: pts}
-	}
-	return results, nil
+// QueryOptions задаёт параметры агрегации для Query.
+// Если nil или Window пустой — возвращаются сырые точки.
+type QueryOptions struct {
+	Window string // duration string: "1m", "5m", "1h"
+	Agg    string // "avg", "min", "max", "sum", "count"
 }
 
 // Query запрашивает данные. from/to в Unix nanoseconds; 0 означает без ограничения.
-func (c *Client) Query(metric string, labels Labels, from, to int64) ([]SeriesResult, error) {
+// Если opts != nil и opts.Window непустой, точки агрегируются по временным окнам.
+func (c *Client) Query(metric string, labels Labels, from, to int64, opts *QueryOptions) ([]SeriesResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
-	resp, err := c.rpc.Query(ctx, &pb.QueryRequest{
+	req := &pb.QueryRequest{
 		Metric: metric,
 		Labels: labels,
 		From:   from,
 		To:     to,
-	})
+	}
+	if opts != nil {
+		req.Window = opts.Window
+		req.Agg = opts.Agg
+	}
+
+	resp, err := c.rpc.Query(ctx, req)
 	if err != nil {
 		return nil, err
 	}

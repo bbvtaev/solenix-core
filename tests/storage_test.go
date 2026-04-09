@@ -50,7 +50,7 @@ func TestChunkFlush(t *testing.T) {
 	}
 	defer db2.Close()
 
-	res, err := db2.Query("cpu_usage", map[string]string{"host": "srv1"}, 0, 0)
+	res, err := db2.Query("cpu_usage", map[string]string{"host": "srv1"}, 0, 0, nil)
 	if err != nil {
 		t.Fatalf("Query: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestWALRotation(t *testing.T) {
 	}
 	defer db2.Close()
 
-	res, err := db2.Query("metric", nil, 0, 0)
+	res, err := db2.Query("metric", nil, 0, 0, nil)
 	if err != nil {
 		t.Fatalf("Query: %v", err)
 	}
@@ -156,7 +156,7 @@ func TestMultiMetricChunks(t *testing.T) {
 		{"mem", 2.0},
 		{"disk", 3.0},
 	} {
-		res, err := db2.Query(tc.metric, nil, 0, 0)
+		res, err := db2.Query(tc.metric, nil, 0, 0, nil)
 		if err != nil {
 			t.Fatalf("Query %s: %v", tc.metric, err)
 		}

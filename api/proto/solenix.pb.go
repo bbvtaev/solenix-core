@@ -225,8 +225,10 @@ type QueryRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Metric        string                 `protobuf:"bytes,1,opt,name=metric,proto3" json:"metric,omitempty"`
 	Labels        map[string]string      `protobuf:"bytes,2,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	From          int64                  `protobuf:"varint,3,opt,name=from,proto3" json:"from,omitempty"` // Unix nanoseconds, 0 = без ограничения
-	To            int64                  `protobuf:"varint,4,opt,name=to,proto3" json:"to,omitempty"`     // Unix nanoseconds, 0 = без ограничения
+	From          int64                  `protobuf:"varint,3,opt,name=from,proto3" json:"from,omitempty"`    // Unix nanoseconds, 0 = без ограничения
+	To            int64                  `protobuf:"varint,4,opt,name=to,proto3" json:"to,omitempty"`        // Unix nanoseconds, 0 = без ограничения
+	Window        string                 `protobuf:"bytes,5,opt,name=window,proto3" json:"window,omitempty"` // опционально: "1m", "5m", "1h" — включает агрегацию
+	Agg           string                 `protobuf:"bytes,6,opt,name=agg,proto3" json:"agg,omitempty"`       // опционально: "avg", "min", "max", "sum", "count"
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -287,6 +289,20 @@ func (x *QueryRequest) GetTo() int64 {
 		return x.To
 	}
 	return 0
+}
+
+func (x *QueryRequest) GetWindow() string {
+	if x != nil {
+		return x.Window
+	}
+	return ""
+}
+
+func (x *QueryRequest) GetAgg() string {
+	if x != nil {
+		return x.Agg
+	}
+	return ""
 }
 
 type QueryResponse struct {
@@ -473,254 +489,6 @@ func (x *HealthResponse) GetVersion() string {
 	return ""
 }
 
-type QueryAggRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Metric        string                 `protobuf:"bytes,1,opt,name=metric,proto3" json:"metric,omitempty"`
-	Labels        map[string]string      `protobuf:"bytes,2,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	From          int64                  `protobuf:"varint,3,opt,name=from,proto3" json:"from,omitempty"`
-	To            int64                  `protobuf:"varint,4,opt,name=to,proto3" json:"to,omitempty"`
-	Window        string                 `protobuf:"bytes,5,opt,name=window,proto3" json:"window,omitempty"` // duration string: "1m", "5m", "1h"
-	Agg           string                 `protobuf:"bytes,6,opt,name=agg,proto3" json:"agg,omitempty"`       // "avg", "min", "max", "sum", "count"
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *QueryAggRequest) Reset() {
-	*x = QueryAggRequest{}
-	mi := &file_api_proto_solenix_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *QueryAggRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*QueryAggRequest) ProtoMessage() {}
-
-func (x *QueryAggRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_solenix_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use QueryAggRequest.ProtoReflect.Descriptor instead.
-func (*QueryAggRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_solenix_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *QueryAggRequest) GetMetric() string {
-	if x != nil {
-		return x.Metric
-	}
-	return ""
-}
-
-func (x *QueryAggRequest) GetLabels() map[string]string {
-	if x != nil {
-		return x.Labels
-	}
-	return nil
-}
-
-func (x *QueryAggRequest) GetFrom() int64 {
-	if x != nil {
-		return x.From
-	}
-	return 0
-}
-
-func (x *QueryAggRequest) GetTo() int64 {
-	if x != nil {
-		return x.To
-	}
-	return 0
-}
-
-func (x *QueryAggRequest) GetWindow() string {
-	if x != nil {
-		return x.Window
-	}
-	return ""
-}
-
-func (x *QueryAggRequest) GetAgg() string {
-	if x != nil {
-		return x.Agg
-	}
-	return ""
-}
-
-type AggPoint struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Timestamp     int64                  `protobuf:"varint,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	Value         float64                `protobuf:"fixed64,2,opt,name=value,proto3" json:"value,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AggPoint) Reset() {
-	*x = AggPoint{}
-	mi := &file_api_proto_solenix_proto_msgTypes[10]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AggPoint) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AggPoint) ProtoMessage() {}
-
-func (x *AggPoint) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_solenix_proto_msgTypes[10]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AggPoint.ProtoReflect.Descriptor instead.
-func (*AggPoint) Descriptor() ([]byte, []int) {
-	return file_api_proto_solenix_proto_rawDescGZIP(), []int{10}
-}
-
-func (x *AggPoint) GetTimestamp() int64 {
-	if x != nil {
-		return x.Timestamp
-	}
-	return 0
-}
-
-func (x *AggPoint) GetValue() float64 {
-	if x != nil {
-		return x.Value
-	}
-	return 0
-}
-
-type AggSeries struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Metric        string                 `protobuf:"bytes,1,opt,name=metric,proto3" json:"metric,omitempty"`
-	Labels        map[string]string      `protobuf:"bytes,2,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Window        string                 `protobuf:"bytes,3,opt,name=window,proto3" json:"window,omitempty"`
-	Points        []*AggPoint            `protobuf:"bytes,4,rep,name=points,proto3" json:"points,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AggSeries) Reset() {
-	*x = AggSeries{}
-	mi := &file_api_proto_solenix_proto_msgTypes[11]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AggSeries) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AggSeries) ProtoMessage() {}
-
-func (x *AggSeries) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_solenix_proto_msgTypes[11]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AggSeries.ProtoReflect.Descriptor instead.
-func (*AggSeries) Descriptor() ([]byte, []int) {
-	return file_api_proto_solenix_proto_rawDescGZIP(), []int{11}
-}
-
-func (x *AggSeries) GetMetric() string {
-	if x != nil {
-		return x.Metric
-	}
-	return ""
-}
-
-func (x *AggSeries) GetLabels() map[string]string {
-	if x != nil {
-		return x.Labels
-	}
-	return nil
-}
-
-func (x *AggSeries) GetWindow() string {
-	if x != nil {
-		return x.Window
-	}
-	return ""
-}
-
-func (x *AggSeries) GetPoints() []*AggPoint {
-	if x != nil {
-		return x.Points
-	}
-	return nil
-}
-
-type QueryAggResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Series        []*AggSeries           `protobuf:"bytes,1,rep,name=series,proto3" json:"series,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *QueryAggResponse) Reset() {
-	*x = QueryAggResponse{}
-	mi := &file_api_proto_solenix_proto_msgTypes[12]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *QueryAggResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*QueryAggResponse) ProtoMessage() {}
-
-func (x *QueryAggResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_solenix_proto_msgTypes[12]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use QueryAggResponse.ProtoReflect.Descriptor instead.
-func (*QueryAggResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_solenix_proto_rawDescGZIP(), []int{12}
-}
-
-func (x *QueryAggResponse) GetSeries() []*AggSeries {
-	if x != nil {
-		return x.Series
-	}
-	return nil
-}
-
 type MetricsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -729,7 +497,7 @@ type MetricsRequest struct {
 
 func (x *MetricsRequest) Reset() {
 	*x = MetricsRequest{}
-	mi := &file_api_proto_solenix_proto_msgTypes[13]
+	mi := &file_api_proto_solenix_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -741,7 +509,7 @@ func (x *MetricsRequest) String() string {
 func (*MetricsRequest) ProtoMessage() {}
 
 func (x *MetricsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_solenix_proto_msgTypes[13]
+	mi := &file_api_proto_solenix_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -754,7 +522,7 @@ func (x *MetricsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetricsRequest.ProtoReflect.Descriptor instead.
 func (*MetricsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_solenix_proto_rawDescGZIP(), []int{13}
+	return file_api_proto_solenix_proto_rawDescGZIP(), []int{9}
 }
 
 type MetricsResponse struct {
@@ -766,7 +534,7 @@ type MetricsResponse struct {
 
 func (x *MetricsResponse) Reset() {
 	*x = MetricsResponse{}
-	mi := &file_api_proto_solenix_proto_msgTypes[14]
+	mi := &file_api_proto_solenix_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -778,7 +546,7 @@ func (x *MetricsResponse) String() string {
 func (*MetricsResponse) ProtoMessage() {}
 
 func (x *MetricsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_solenix_proto_msgTypes[14]
+	mi := &file_api_proto_solenix_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -791,7 +559,7 @@ func (x *MetricsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetricsResponse.ProtoReflect.Descriptor instead.
 func (*MetricsResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_solenix_proto_rawDescGZIP(), []int{14}
+	return file_api_proto_solenix_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *MetricsResponse) GetMetrics() []string {
@@ -819,12 +587,14 @@ const file_api_proto_solenix_proto_rawDesc = "" +
 	"\vPushRequest\x12'\n" +
 	"\x06series\x18\x01 \x03(\v2\x0f.solenix.SeriesR\x06series\"(\n" +
 	"\fPushResponse\x12\x18\n" +
-	"\awritten\x18\x01 \x01(\x05R\awritten\"\xc0\x01\n" +
+	"\awritten\x18\x01 \x01(\x05R\awritten\"\xea\x01\n" +
 	"\fQueryRequest\x12\x16\n" +
 	"\x06metric\x18\x01 \x01(\tR\x06metric\x129\n" +
 	"\x06labels\x18\x02 \x03(\v2!.solenix.QueryRequest.LabelsEntryR\x06labels\x12\x12\n" +
 	"\x04from\x18\x03 \x01(\x03R\x04from\x12\x0e\n" +
-	"\x02to\x18\x04 \x01(\x03R\x02to\x1a9\n" +
+	"\x02to\x18\x04 \x01(\x03R\x02to\x12\x16\n" +
+	"\x06window\x18\x05 \x01(\tR\x06window\x12\x10\n" +
+	"\x03agg\x18\x06 \x01(\tR\x03agg\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"8\n" +
@@ -839,37 +609,13 @@ const file_api_proto_solenix_proto_rawDesc = "" +
 	"\rHealthRequest\"B\n" +
 	"\x0eHealthResponse\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\tR\aversion\"\xf0\x01\n" +
-	"\x0fQueryAggRequest\x12\x16\n" +
-	"\x06metric\x18\x01 \x01(\tR\x06metric\x12<\n" +
-	"\x06labels\x18\x02 \x03(\v2$.solenix.QueryAggRequest.LabelsEntryR\x06labels\x12\x12\n" +
-	"\x04from\x18\x03 \x01(\x03R\x04from\x12\x0e\n" +
-	"\x02to\x18\x04 \x01(\x03R\x02to\x12\x16\n" +
-	"\x06window\x18\x05 \x01(\tR\x06window\x12\x10\n" +
-	"\x03agg\x18\x06 \x01(\tR\x03agg\x1a9\n" +
-	"\vLabelsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\">\n" +
-	"\bAggPoint\x12\x1c\n" +
-	"\ttimestamp\x18\x01 \x01(\x03R\ttimestamp\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x01R\x05value\"\xd9\x01\n" +
-	"\tAggSeries\x12\x16\n" +
-	"\x06metric\x18\x01 \x01(\tR\x06metric\x126\n" +
-	"\x06labels\x18\x02 \x03(\v2\x1e.solenix.AggSeries.LabelsEntryR\x06labels\x12\x16\n" +
-	"\x06window\x18\x03 \x01(\tR\x06window\x12)\n" +
-	"\x06points\x18\x04 \x03(\v2\x11.solenix.AggPointR\x06points\x1a9\n" +
-	"\vLabelsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\">\n" +
-	"\x10QueryAggResponse\x12*\n" +
-	"\x06series\x18\x01 \x03(\v2\x12.solenix.AggSeriesR\x06series\"\x10\n" +
+	"\aversion\x18\x02 \x01(\tR\aversion\"\x10\n" +
 	"\x0eMetricsRequest\"+\n" +
 	"\x0fMetricsResponse\x12\x18\n" +
-	"\ametrics\x18\x01 \x03(\tR\ametrics2\xf0\x02\n" +
+	"\ametrics\x18\x01 \x03(\tR\ametrics2\xaf\x02\n" +
 	"\tSolenixDB\x123\n" +
 	"\x04Push\x12\x14.solenix.PushRequest\x1a\x15.solenix.PushResponse\x126\n" +
-	"\x05Query\x12\x15.solenix.QueryRequest\x1a\x16.solenix.QueryResponse\x12?\n" +
-	"\bQueryAgg\x12\x18.solenix.QueryAggRequest\x1a\x19.solenix.QueryAggResponse\x12<\n" +
+	"\x05Query\x12\x15.solenix.QueryRequest\x1a\x16.solenix.QueryResponse\x12<\n" +
 	"\tSubscribe\x12\x19.solenix.SubscribeRequest\x1a\x12.solenix.DataPoint0\x01\x129\n" +
 	"\x06Health\x12\x16.solenix.HealthRequest\x1a\x17.solenix.HealthResponse\x12<\n" +
 	"\aMetrics\x12\x17.solenix.MetricsRequest\x1a\x18.solenix.MetricsResponseB0Z.github.com/bbvtaev/solenix/api/proto;solenixpbb\x06proto3"
@@ -886,7 +632,7 @@ func file_api_proto_solenix_proto_rawDescGZIP() []byte {
 	return file_api_proto_solenix_proto_rawDescData
 }
 
-var file_api_proto_solenix_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_api_proto_solenix_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_api_proto_solenix_proto_goTypes = []any{
 	(*DataPoint)(nil),        // 0: solenix.DataPoint
 	(*Series)(nil),           // 1: solenix.Series
@@ -897,46 +643,34 @@ var file_api_proto_solenix_proto_goTypes = []any{
 	(*SubscribeRequest)(nil), // 6: solenix.SubscribeRequest
 	(*HealthRequest)(nil),    // 7: solenix.HealthRequest
 	(*HealthResponse)(nil),   // 8: solenix.HealthResponse
-	(*QueryAggRequest)(nil),  // 9: solenix.QueryAggRequest
-	(*AggPoint)(nil),         // 10: solenix.AggPoint
-	(*AggSeries)(nil),        // 11: solenix.AggSeries
-	(*QueryAggResponse)(nil), // 12: solenix.QueryAggResponse
-	(*MetricsRequest)(nil),   // 13: solenix.MetricsRequest
-	(*MetricsResponse)(nil),  // 14: solenix.MetricsResponse
-	nil,                      // 15: solenix.Series.LabelsEntry
-	nil,                      // 16: solenix.QueryRequest.LabelsEntry
-	nil,                      // 17: solenix.SubscribeRequest.LabelsEntry
-	nil,                      // 18: solenix.QueryAggRequest.LabelsEntry
-	nil,                      // 19: solenix.AggSeries.LabelsEntry
+	(*MetricsRequest)(nil),   // 9: solenix.MetricsRequest
+	(*MetricsResponse)(nil),  // 10: solenix.MetricsResponse
+	nil,                      // 11: solenix.Series.LabelsEntry
+	nil,                      // 12: solenix.QueryRequest.LabelsEntry
+	nil,                      // 13: solenix.SubscribeRequest.LabelsEntry
 }
 var file_api_proto_solenix_proto_depIdxs = []int32{
-	15, // 0: solenix.Series.labels:type_name -> solenix.Series.LabelsEntry
+	11, // 0: solenix.Series.labels:type_name -> solenix.Series.LabelsEntry
 	0,  // 1: solenix.Series.points:type_name -> solenix.DataPoint
 	1,  // 2: solenix.PushRequest.series:type_name -> solenix.Series
-	16, // 3: solenix.QueryRequest.labels:type_name -> solenix.QueryRequest.LabelsEntry
+	12, // 3: solenix.QueryRequest.labels:type_name -> solenix.QueryRequest.LabelsEntry
 	1,  // 4: solenix.QueryResponse.series:type_name -> solenix.Series
-	17, // 5: solenix.SubscribeRequest.labels:type_name -> solenix.SubscribeRequest.LabelsEntry
-	18, // 6: solenix.QueryAggRequest.labels:type_name -> solenix.QueryAggRequest.LabelsEntry
-	19, // 7: solenix.AggSeries.labels:type_name -> solenix.AggSeries.LabelsEntry
-	10, // 8: solenix.AggSeries.points:type_name -> solenix.AggPoint
-	11, // 9: solenix.QueryAggResponse.series:type_name -> solenix.AggSeries
-	2,  // 10: solenix.SolenixDB.Push:input_type -> solenix.PushRequest
-	4,  // 11: solenix.SolenixDB.Query:input_type -> solenix.QueryRequest
-	9,  // 12: solenix.SolenixDB.QueryAgg:input_type -> solenix.QueryAggRequest
-	6,  // 13: solenix.SolenixDB.Subscribe:input_type -> solenix.SubscribeRequest
-	7,  // 14: solenix.SolenixDB.Health:input_type -> solenix.HealthRequest
-	13, // 15: solenix.SolenixDB.Metrics:input_type -> solenix.MetricsRequest
-	3,  // 16: solenix.SolenixDB.Push:output_type -> solenix.PushResponse
-	5,  // 17: solenix.SolenixDB.Query:output_type -> solenix.QueryResponse
-	12, // 18: solenix.SolenixDB.QueryAgg:output_type -> solenix.QueryAggResponse
-	0,  // 19: solenix.SolenixDB.Subscribe:output_type -> solenix.DataPoint
-	8,  // 20: solenix.SolenixDB.Health:output_type -> solenix.HealthResponse
-	14, // 21: solenix.SolenixDB.Metrics:output_type -> solenix.MetricsResponse
-	16, // [16:22] is the sub-list for method output_type
-	10, // [10:16] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	13, // 5: solenix.SubscribeRequest.labels:type_name -> solenix.SubscribeRequest.LabelsEntry
+	2,  // 6: solenix.SolenixDB.Push:input_type -> solenix.PushRequest
+	4,  // 7: solenix.SolenixDB.Query:input_type -> solenix.QueryRequest
+	6,  // 8: solenix.SolenixDB.Subscribe:input_type -> solenix.SubscribeRequest
+	7,  // 9: solenix.SolenixDB.Health:input_type -> solenix.HealthRequest
+	9,  // 10: solenix.SolenixDB.Metrics:input_type -> solenix.MetricsRequest
+	3,  // 11: solenix.SolenixDB.Push:output_type -> solenix.PushResponse
+	5,  // 12: solenix.SolenixDB.Query:output_type -> solenix.QueryResponse
+	0,  // 13: solenix.SolenixDB.Subscribe:output_type -> solenix.DataPoint
+	8,  // 14: solenix.SolenixDB.Health:output_type -> solenix.HealthResponse
+	10, // 15: solenix.SolenixDB.Metrics:output_type -> solenix.MetricsResponse
+	11, // [11:16] is the sub-list for method output_type
+	6,  // [6:11] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_solenix_proto_init() }
@@ -950,7 +684,7 @@ func file_api_proto_solenix_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_solenix_proto_rawDesc), len(file_api_proto_solenix_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

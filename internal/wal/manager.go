@@ -11,8 +11,8 @@ import (
 	"github.com/bbvtaev/solenix/internal/model"
 )
 
-// Manager управляет нумерованными WAL сегментами.
-// Файлы: data/wal/000001.wal, 000002.wal, ...
+// Manager controls numbered WAL segments.
+// Files: data/wal/000001.wal, 000002.wal, ...
 type Manager struct {
 	mu      sync.Mutex
 	dir     string
@@ -21,7 +21,7 @@ type Manager struct {
 	maxSize int64 // ротация по размеру; 0 — только по таймеру
 }
 
-// Open открывает (или создаёт) WAL manager в указанной директории.
+// Open opens (or creates) a WAL manager in the specified directory.
 func Open(dir string, maxSize int64) (*Manager, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("mkdir wal dir: %w", err)
@@ -49,22 +49,22 @@ func Open(dir string, maxSize int64) (*Manager, error) {
 	}, nil
 }
 
-// Write записывает запись в текущий WAL сегмент.
+// Write writes a record to the current WAL segment.
 func (m *Manager) Write(rec model.Record) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.current.write(rec)
 }
 
-// Flush сбрасывает буфер текущего сегмента на диск (fsync).
+// Flush flushes the buffer of the current segment to disk (fsync).
 func (m *Manager) Flush() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.current.flush()
 }
 
-// Rotate запечатывает текущий сегмент и открывает новый.
-// Возвращает путь к запечатанному сегменту.
+// Rotate seals the current segment and opens a new one.
+// Returns the path to the sealed segment.
 func (m *Manager) Rotate() (sealedPath string, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -86,7 +86,7 @@ func (m *Manager) Rotate() (sealedPath string, err error) {
 	return sealedPath, nil
 }
 
-// ShouldRotate возвращает true если текущий сегмент превысил maxSize.
+// ShouldRotate returns true if the current segment has exceeded maxSize.
 func (m *Manager) ShouldRotate() bool {
 	if m.maxSize <= 0 {
 		return false
@@ -102,14 +102,14 @@ func (m *Manager) ShouldRotate() bool {
 	return info.Size() >= m.maxSize
 }
 
-// Close закрывает текущий WAL сегмент.
+// Close closes current WAL segment.
 func (m *Manager) Close() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.current.close()
 }
 
-// ListSegmentPaths возвращает пути всех *.wal файлов, отсортированных по имени.
+// ListSegmentPaths returns the paths of all *.wal files, sorted by name.
 func ListSegmentPaths(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {

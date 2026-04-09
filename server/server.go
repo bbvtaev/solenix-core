@@ -53,41 +53,21 @@ func (s *Server) Push(_ context.Context, req *pb.PushRequest) (*pb.PushResponse,
 	return &pb.PushResponse{Written: written}, nil
 }
 
-func (s *Server) QueryAgg(_ context.Context, req *pb.QueryAggRequest) (*pb.QueryAggResponse, error) {
-	window, err := time.ParseDuration(req.Window)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid window %q: %v", req.Window, err)
-	}
-
-	agg, err := solenix.ParseAggType(req.Agg)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
-	}
-
-	results, err := s.db.QueryAgg(req.Metric, req.Labels, req.From, req.To, window, agg)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
-	}
-
-	pbSeries := make([]*pb.AggSeries, 0, len(results))
-	for _, r := range results {
-		pts := make([]*pb.AggPoint, len(r.Points))
-		for i, p := range r.Points {
-			pts[i] = &pb.AggPoint{Timestamp: p.Timestamp, Value: p.Value}
-		}
-		pbSeries = append(pbSeries, &pb.AggSeries{
-			Metric: r.Metric,
-			Labels: r.Labels,
-			Window: req.Window,
-			Points: pts,
-		})
-	}
-
-	return &pb.QueryAggResponse{Series: pbSeries}, nil
-}
-
 func (s *Server) Query(_ context.Context, req *pb.QueryRequest) (*pb.QueryResponse, error) {
-	results, err := s.db.Query(req.Metric, req.Labels, req.From, req.To)
+	var opts *solenix.QueryOptions
+	if req.Window != "" {
+		window, err := time.ParseDuration(req.Window)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid window %q: %v", req.Window, err)
+		}
+		agg, err := solenix.ParseAggType(req.Agg)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
+		opts = &solenix.QueryOptions{Window: window, Agg: agg}
+	}
+
+	results, err := s.db.Query(req.Metric, req.Labels, req.From, req.To, opts)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
@@ -107,7 +87,6 @@ func (s *Server) Query(_ context.Context, req *pb.QueryRequest) (*pb.QueryRespon
 
 	return &pb.QueryResponse{Series: pbSeries}, nil
 }
-
 
 // Subscribe — server-side streaming: шлёт DataPoint в реальном времени.
 func (s *Server) Subscribe(req *pb.SubscribeRequest, stream pb.SolenixDB_SubscribeServer) error {

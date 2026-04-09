@@ -1,37 +1,20 @@
 # solenix.yaml — конфигурация solenix-core сервера
 # Запуск: solenix serve --config solenix.yaml
 
-# Режим работы: self-hosted | cloud
-mode: self-hosted
-
-# gRPC адрес сервера
 grpc_addr: ":8731"
 
-# HTTP адрес UI и REST API (открой 127.0.0.1:8080)
 http_addr: ":8080"
 
-# Директория для хранения данных (WAL + chunks)
-data_dir: "~/.solenix/data"
+database: "default"
 
-# Максимальный размер WAL сегмента до ротации (байт)
-wal_max_size: 33554432 # 32 MiB
+wal_max_size: 32 # MiB
 
-# Как часто сбрасывать данные из WAL в chunks
 flush_interval: "2m"
 
-# Порог компакции: сколько chunk-файлов на метрику до слияния
 compaction_threshold: 10
 
-# Retention policy: как долго хранить точки (0 = вечно)
-# Примеры: "24h", "168h" (7 дней), "720h" (30 дней)
 retention: "720h"
 
-# Авторизация
-auth:
-  enabled: false
-  api_keys: []
-
-# Встроенный сбор системных метрик хоста
 collector:
-  enabled: false
-  interval: "15s"
+  enabled: true
+  interval: "1s"

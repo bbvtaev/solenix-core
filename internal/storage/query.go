@@ -11,10 +11,10 @@ import (
 	"github.com/bbvtaev/solenix/internal/model"
 )
 
-// Query возвращает все серии по метрике и лейблам в диапазоне [from, to].
+// Query возвращает серии по метрике и лейблам в диапазоне [from, to].
 // from и to — Unix nanoseconds. 0 означает отсутствие ограничения.
-// Результат объединяет холодные данные из chunk-файлов и горячий буфер из памяти.
-func (db *DB) Query(metric string, labels map[string]string, from, to int64) ([]model.SeriesResult, error) {
+// Если opts != nil и opts.Window > 0, точки агрегируются по временным окнам.
+func (db *DB) Query(metric string, labels map[string]string, from, to int64, opts *model.QueryOptions) ([]model.SeriesResult, error) {
 	if metric == "" {
 		return nil, errors.New("metric is required")
 	}
@@ -26,13 +26,28 @@ func (db *DB) Query(metric string, labels map[string]string, from, to int64) ([]
 
 	hot := db.queryMemory(metric, labels, from, to)
 
+	var raw []model.SeriesResult
 	if len(cold) == 0 {
-		return hot, nil
+		raw = hot
+	} else if len(hot) == 0 {
+		raw = cold
+	} else {
+		raw = mergeQueryResults(cold, hot)
 	}
-	if len(hot) == 0 {
-		return cold, nil
+
+	if opts == nil || opts.Window == 0 {
+		return raw, nil
 	}
-	return mergeQueryResults(cold, hot), nil
+
+	results := make([]model.SeriesResult, 0, len(raw))
+	for _, s := range raw {
+		pts := aggregatePoints(s.Points, from, opts.Window, opts.Agg)
+		if len(pts) == 0 {
+			continue
+		}
+		results = append(results, model.SeriesResult{Metric: s.Metric, Labels: s.Labels, Points: pts})
+	}
+	return results, nil
 }
 
 // queryMemory читает только горячий буфер (точки, не сброшенные в chunks).
@@ -108,30 +123,6 @@ func mergeQueryResults(cold, hot []model.SeriesResult) []model.SeriesResult {
 }
 
 
-// QueryAgg возвращает агрегированные данные по временным окнам.
-func (db *DB) QueryAgg(metric string, labels map[string]string, from, to int64, window time.Duration, agg model.AggType) ([]model.AggResult, error) {
-	raw, err := db.Query(metric, labels, from, to)
-	if err != nil {
-		return nil, err
-	}
-
-	results := make([]model.AggResult, 0, len(raw))
-	for _, s := range raw {
-		pts := aggregatePoints(s.Points, from, window, agg)
-		if len(pts) == 0 {
-			continue
-		}
-		results = append(results, model.AggResult{
-			Metric: s.Metric,
-			Labels: s.Labels,
-			Window: window,
-			Points: pts,
-		})
-	}
-
-	return results, nil
-}
-
 func filterPoints(points []model.Point, from, to int64) []model.Point {
 	if len(points) == 0 {
 		return nil
@@ -160,8 +151,7 @@ func filterPoints(points []model.Point, from, to int64) []model.Point {
 	return out
 }
 
-
-func aggregatePoints(points []model.Point, from int64, window time.Duration, agg model.AggType) []model.AggPoint {
+func aggregatePoints(points []model.Point, from int64, window time.Duration, agg model.AggType) []model.Point {
 	if len(points) == 0 || window <= 0 {
 		return nil
 	}
@@ -174,7 +164,7 @@ func aggregatePoints(points []model.Point, from int64, window time.Duration, agg
 	bucketStart := (base / winNs) * winNs
 
 	last := points[len(points)-1].Timestamp
-	var result []model.AggPoint
+	var result []model.Point
 
 	for bucketStart <= last {
 		bucketEnd := bucketStart + winNs
@@ -187,7 +177,7 @@ func aggregatePoints(points []model.Point, from int64, window time.Duration, agg
 			for i, p := range points[lo:hi] {
 				vals[i] = p.Value
 			}
-			result = append(result, model.AggPoint{
+			result = append(result, model.Point{
 				Timestamp: bucketStart,
 				Value:     applyAgg(vals, agg),
 			})

@@ -7,6 +7,10 @@ import (
 
 const Version = "6.2.1-alpha"
 
+// DataFormatVersion — версия формата данных на диске (WAL + chunks).
+// При несовместимых изменениях формата увеличивается вручную.
+const DataFormatVersion = "1"
+
 type Point struct {
 	Timestamp int64   `json:"timestamp"`
 	Value     float64 `json:"value"`
@@ -43,28 +47,11 @@ func ParseAggType(s string) (AggType, error) {
 	}
 }
 
-type AggPoint struct {
-	Timestamp int64   `json:"timestamp"`
-	Value     float64 `json:"value"`
-}
-
-type AggResult struct {
-	Metric string            `json:"metric"`
-	Labels map[string]string `json:"labels"`
-	Window time.Duration     `json:"window"`
-	Points []AggPoint        `json:"points"`
-}
-
-type ServerMode string
-
-const (
-	ModeSelfHosted ServerMode = "self-hosted"
-	ModeCloud      ServerMode = "cloud"
-)
-
-type AuthConfig struct {
-	Enabled bool     `yaml:"enabled"`
-	APIKeys []string `yaml:"api_keys"`
+// QueryOptions задаёт параметры агрегации для Query.
+// Если nil или Window == 0 — возвращаются сырые точки.
+type QueryOptions struct {
+	Window time.Duration
+	Agg    AggType
 }
 
 type CollectorConfig struct {

@@ -25,7 +25,7 @@ func TestWriteAndQuerySingleSeries(t *testing.T) {
 		t.Fatalf("Write() error = %v", err)
 	}
 
-	res, err := db.Query("cpu_usage", map[string]string{"host": "a"}, 0, 0)
+	res, err := db.Query("cpu_usage", map[string]string{"host": "a"}, 0, 0, nil)
 	if err != nil {
 		t.Fatalf("Query() error = %v", err)
 	}
@@ -51,7 +51,7 @@ func TestLabelFiltering(t *testing.T) {
 	_ = db.Push("cpu_usage", map[string]string{"host": "ab"}, 0.1)
 	_ = db.Push("cpu_usage", map[string]string{"host": "bs"}, 0.2)
 
-	resA, err := db.Query("cpu_usage", map[string]string{"host": "ab"}, 0, 0)
+	resA, err := db.Query("cpu_usage", map[string]string{"host": "ab"}, 0, 0, nil)
 	if err != nil {
 		t.Fatalf("Query() error = %v", err)
 	}
@@ -59,7 +59,7 @@ func TestLabelFiltering(t *testing.T) {
 		t.Errorf("expected 1 series host=ab, got %v", resA)
 	}
 
-	resB, err := db.Query("cpu_usage", map[string]string{"host": "bs"}, 0, 0)
+	resB, err := db.Query("cpu_usage", map[string]string{"host": "bs"}, 0, 0, nil)
 	if err != nil {
 		t.Fatalf("Query() error = %v", err)
 	}
@@ -67,7 +67,7 @@ func TestLabelFiltering(t *testing.T) {
 		t.Errorf("expected 1 series host=bs, got %v", resB)
 	}
 
-	resAll, err := db.Query("cpu_usage", nil, 0, 0)
+	resAll, err := db.Query("cpu_usage", nil, 0, 0, nil)
 	if err != nil {
 		t.Fatalf("Query() error = %v", err)
 	}
@@ -83,7 +83,7 @@ func TestTimeRangeFiltering(t *testing.T) {
 	_ = db.Push("temp", map[string]string{"sensor": "s1"}, 1.0)
 	after := time.Now().UnixNano()
 
-	res, err := db.Query("temp", nil, before, after)
+	res, err := db.Query("temp", nil, before, after, nil)
 	if err != nil {
 		t.Fatalf("Query() error = %v", err)
 	}
@@ -91,7 +91,7 @@ func TestTimeRangeFiltering(t *testing.T) {
 		t.Fatalf("expected 1 series/1 point in range, got %v", res)
 	}
 
-	res2, err := db.Query("temp", nil, after+1, after+1000)
+	res2, err := db.Query("temp", nil, after+1, after+1000, nil)
 	if err != nil {
 		t.Fatalf("Query() error = %v", err)
 	}
@@ -121,7 +121,7 @@ func TestWALReplay(t *testing.T) {
 	}
 	defer db2.Close()
 
-	res, err := db2.Query("disk_usage", map[string]string{"host": "a"}, 0, 0)
+	res, err := db2.Query("disk_usage", map[string]string{"host": "a"}, 0, 0, nil)
 	if err != nil {
 		t.Fatalf("Query() error = %v", err)
 	}
@@ -132,7 +132,7 @@ func TestWALReplay(t *testing.T) {
 
 func TestQueryValidationErrors(t *testing.T) {
 	db := newTestDB(t)
-	_, err := db.Query("", nil, 0, 0)
+	_, err := db.Query("", nil, 0, 0, nil)
 	if err == nil {
 		t.Fatal("expected error for empty metric")
 	}
@@ -153,9 +153,9 @@ func TestQueryAgg(t *testing.T) {
 		t.Fatalf("WriteBatch() error = %v", err)
 	}
 
-	res, err := db.QueryAgg("metric", nil, 0, 0, time.Minute, solenix.AggAvg)
+	res, err := db.Query("metric", nil, 0, 0, &solenix.QueryOptions{Window: time.Minute, Agg: solenix.AggAvg})
 	if err != nil {
-		t.Fatalf("QueryAgg() error = %v", err)
+		t.Fatalf("Query() error = %v", err)
 	}
 	if len(res) != 1 {
 		t.Fatalf("expected 1 agg result, got %d", len(res))

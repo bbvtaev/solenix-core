@@ -7,7 +7,6 @@ option go_package = "github.com/bbvtaev/solenix/api/proto;solenixpb";
 service SolenixDB {
   rpc Push(PushRequest)           returns (PushResponse);
   rpc Query(QueryRequest)         returns (QueryResponse);
-  rpc QueryAgg(QueryAggRequest)   returns (QueryAggResponse);
   rpc Subscribe(SubscribeRequest) returns (stream DataPoint);
   rpc Health(HealthRequest)       returns (HealthResponse);
   rpc Metrics(MetricsRequest)     returns (MetricsResponse);
@@ -43,6 +42,8 @@ message QueryRequest {
   map<string, string> labels = 2;
   int64               from   = 3; // Unix nanoseconds, 0 = без ограничения
   int64               to     = 4; // Unix nanoseconds, 0 = без ограничения
+  string              window = 5; // опционально: "1m", "5m", "1h" — включает агрегацию
+  string              agg    = 6; // опционально: "avg", "min", "max", "sum", "count"
 }
 
 message QueryResponse {
@@ -66,33 +67,6 @@ message HealthRequest {}
 message HealthResponse {
   string status  = 1; // "ok"
   string version = 2;
-}
-
-// --- QueryAgg ---
-
-message QueryAggRequest {
-  string              metric   = 1;
-  map<string, string> labels   = 2;
-  int64               from     = 3;
-  int64               to       = 4;
-  string              window   = 5; // duration string: "1m", "5m", "1h"
-  string              agg      = 6; // "avg", "min", "max", "sum", "count"
-}
-
-message AggPoint {
-  int64  timestamp = 1;
-  double value     = 2;
-}
-
-message AggSeries {
-  string              metric = 1;
-  map<string, string> labels = 2;
-  string              window = 3;
-  repeated AggPoint   points = 4;
-}
-
-message QueryAggResponse {
-  repeated AggSeries series = 1;
 }
 
 // --- Metrics ---
